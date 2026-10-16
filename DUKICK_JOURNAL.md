@@ -1,0 +1,19 @@
+# Buzz Dukick journal — 2026-10-16
+
+- Scope: B1 only. Claude Thái and the official `C:\GithubRepo\buzz` checkout were not modified.
+- Preflight: linked worktree `C:\GithubRepo\buzz-dukick` on `dukick/main`; baseline `93ffc37cb`. No other active `buzz-dukick` process or thread was found.
+- B1 RED/GREEN: added and passed identity/keyring separation tests for Dukick deep-link, config nest, CLI name, migration marker, and keyring service.
+- Changed files: `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/tauri.dev.conf.json`, `desktop/src-tauri/build.rs`, `desktop/src-tauri/src/build_identity.rs`, `desktop/src-tauri/src/app_state_keyring.rs`.
+- Identity decisions: product `Buzz Dukick`; identifier `xyz.dukick.buzz.app`; deep-link `buzz-dukick`; keyring `buzz-desktop-dukick` (debug `buzz-desktop-dukick-dev`); config nest `.buzz-dukick`; child config root `%APPDATA%\\buzz-dukick`.
+- Updater: build script no longer enables the updater cfg even when upstream updater environment variables are present.
+- Sidecars: built real Windows release binaries with MSVC and bundled them process-locally under `desktop/src-tauri/binaries` (ignored build inputs; no stubs committed).
+- Release packaging: PASS — `Buzz Dukick_0.5.28_x64-setup.exe` and `buzz-desktop.exe` built successfully with NSIS.
+- Distinct icon: PASS — generated Dukick badge-D assets and configured `dukick-*.png` plus `dukick.ico`; the bundle build accepted them.
+- Parallel smoke: PASS — Dukick release process ran simultaneously with the existing desktop process; no identity/key/token/cookie was read or imported. Official installer mtime was observed before/after unchanged.
+- Verification: `cargo fmt --all -- --check` PASS; build-identity tests PASS (5 passed, 1 ignored); `dukick_builds_use_a_distinct_keyring_service` PASS (1 passed); `pnpm --dir desktop typecheck` PASS; `pnpm --dir desktop test` PASS; Tauri NSIS build PASS.
+- The Tauri test config used to bypass only the missing external-binary list was process-local and has been removed; no test-only config remains in the checkout.
+- B1 DONE 25666cb10 (identity separation, updater-off, distinct icon, release/NSIS smoke build).
+- B2/B3/B4: not started; this journal must not claim READY FOR AUDIT until those slices are implemented and verified.
+- No push or PR.
+
+BLOCKED: B1 cannot be verified or committed because the checkout lacks the Tauri external binaries required by the build script; dev/release packaging and icon verification remain incomplete.

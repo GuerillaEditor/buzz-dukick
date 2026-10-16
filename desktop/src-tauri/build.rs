@@ -134,9 +134,10 @@ fn main() {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
 
-    if updater_public_key.is_some() && updater_endpoint.is_some() {
-        println!("cargo:rustc-cfg=buzz_updater_enabled");
-    }
+    // Dukick is a parallel build and must never self-update or overwrite the
+    // official Buzz installation, even if upstream updater variables leak into
+    // this process environment.
+    let _ = (updater_public_key, updater_endpoint);
 
     // Cargo test executables get no embedded Windows manifest (tauri_build
     // attaches one to bin targets only), so the loader binds comctl32 v5, which

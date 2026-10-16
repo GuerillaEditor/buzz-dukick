@@ -1,8 +1,7 @@
-//! Compile-time identity for reusable named demo builds.
+//! Compile-time identity for the parallel Buzz Dukick build.
 //!
-//! Production builds leave `BUZZ_DESKTOP_BUILD_DEMO_SLUG` unset and retain all
-//! existing names. The demo recipe validates one slug and `build.rs` bakes it
-//! into the binary; every runtime identity is then derived from that one value.
+//! Optional demo slugs remain scoped below the Dukick identity so the fork
+//! never shares runtime state with the official Buzz application.
 
 use std::borrow::Cow;
 
@@ -39,17 +38,19 @@ fn demo_config_home_for(
     config_dir: Option<std::path::PathBuf>,
 ) -> Result<Option<std::path::PathBuf>, String> {
     match demo_slug {
-        None => Ok(None),
+        None => config_dir
+            .map(|dir| Some(dir.join("buzz-dukick")))
+            .ok_or_else(|| "cannot resolve Dukick credential directory".to_string()),
         Some(slug) => config_dir
-            .map(|dir| Some(dir.join(format!("buzz-demo-{slug}"))))
+            .map(|dir| Some(dir.join(format!("buzz-dukick-demo-{slug}"))))
             .ok_or_else(|| "cannot resolve demo credential directory".to_string()),
     }
 }
 
 pub(crate) fn deep_link_scheme() -> Cow<'static, str> {
     demo_slug()
-        .map(|slug| Cow::Owned(format!("buzz-demo-{slug}")))
-        .unwrap_or(Cow::Borrowed("buzz"))
+        .map(|slug| Cow::Owned(format!("buzz-dukick-demo-{slug}")))
+        .unwrap_or(Cow::Borrowed("buzz-dukick"))
 }
 
 pub(crate) fn is_deep_link_for_build(value: &str) -> bool {
@@ -64,8 +65,8 @@ fn is_deep_link_for_scheme(value: &str, scheme: &str) -> bool {
 
 pub(crate) fn keyring_service() -> Cow<'static, str> {
     demo_slug()
-        .map(|slug| Cow::Owned(format!("buzz-desktop-demo.{slug}")))
-        .unwrap_or(Cow::Borrowed("buzz-desktop"))
+        .map(|slug| Cow::Owned(format!("buzz-desktop-dukick.{slug}")))
+        .unwrap_or(Cow::Borrowed("buzz-desktop-dukick"))
 }
 
 pub(crate) fn nest_name(is_dev: bool) -> Cow<'static, str> {
@@ -74,21 +75,21 @@ pub(crate) fn nest_name(is_dev: bool) -> Cow<'static, str> {
 
 fn nest_name_for(demo_slug: Option<&str>, is_dev: bool) -> Cow<'_, str> {
     if let Some(slug) = demo_slug {
-        Cow::Owned(format!(".buzz-demo-{slug}"))
+        Cow::Owned(format!(".buzz-dukick-demo-{slug}"))
     } else if is_dev {
-        Cow::Borrowed(".buzz-dev")
+        Cow::Borrowed(".buzz-dukick-dev")
     } else {
-        Cow::Borrowed(".buzz")
+        Cow::Borrowed(".buzz-dukick")
     }
 }
 
 pub(crate) fn cli_name(is_dev: bool) -> String {
     if let Some(slug) = demo_slug() {
-        format!("buzz-demo-{slug}")
+        format!("buzz-dukick-demo-{slug}")
     } else if is_dev {
-        "buzz-dev".to_string()
+        "buzz-dukick-dev".to_string()
     } else {
-        "buzz".to_string()
+        "buzz-dukick".to_string()
     }
 }
 
@@ -105,12 +106,12 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_release_defaults_remain_production_identity() {
+    fn ordinary_release_defaults_use_dukick_identity() {
         if demo_slug().is_none() {
-            assert_eq!(deep_link_scheme(), "buzz");
-            assert_eq!(keyring_service(), "buzz-desktop");
-            assert_eq!(nest_name(false), ".buzz");
-            assert_eq!(cli_name(false), "buzz");
+            assert_eq!(deep_link_scheme(), "buzz-dukick");
+            assert_eq!(keyring_service(), "buzz-desktop-dukick");
+            assert_eq!(nest_name(false), ".buzz-dukick");
+            assert_eq!(cli_name(false), "buzz-dukick");
         }
     }
 
@@ -119,7 +120,7 @@ mod tests {
         let base = std::path::PathBuf::from("/Users/demo/Library/Application Support");
         assert_eq!(
             demo_config_home_for(None, Some(base.clone())).unwrap(),
-            None
+            Some(base.join("buzz-dukick"))
         );
         let first = demo_config_home_for(Some("board-1234567812345678"), Some(base.clone()))
             .unwrap()
@@ -130,21 +131,24 @@ mod tests {
         assert_eq!(
             first,
             std::path::PathBuf::from(
-                "/Users/demo/Library/Application Support/buzz-demo-board-1234567812345678"
+                "/Users/demo/Library/Application Support/buzz-dukick-demo-board-1234567812345678"
             )
         );
         assert_eq!(
             first.join("buzz-agent/oauth"),
             std::path::PathBuf::from(
-                "/Users/demo/Library/Application Support/buzz-demo-board-1234567812345678/buzz-agent/oauth"
+                "/Users/demo/Library/Application Support/buzz-dukick-demo-board-1234567812345678/buzz-agent/oauth"
             )
         );
         assert_ne!(first, second);
     }
 
     #[test]
-    fn unresolved_demo_credentials_never_select_production_defaults() {
-        assert_eq!(demo_config_home_for(None, None).unwrap(), None);
+    fn unresolved_dukick_credentials_fail_closed() {
+        assert_eq!(
+            demo_config_home_for(None, None),
+            Err("cannot resolve Dukick credential directory".to_string())
+        );
         assert_eq!(
             demo_config_home_for(Some("board-1234567812345678"), None),
             Err("cannot resolve demo credential directory".to_string())
@@ -155,29 +159,29 @@ mod tests {
     fn duplicate_instance_links_follow_the_build_scheme() {
         assert!(is_deep_link_for_scheme("buzz://message?id=1", "buzz"));
         assert!(!is_deep_link_for_scheme(
-            "buzz-demo-board-1234567812345678://message?id=1",
-            "buzz"
+            "buzz-dukick-demo-board-1234567812345678://message?id=1",
+            "buzz-dukick"
         ));
         assert!(is_deep_link_for_scheme(
-            "buzz-demo-board-1234567812345678://message?id=1",
-            "buzz-demo-board-1234567812345678"
+            "buzz-dukick-demo-board-1234567812345678://message?id=1",
+            "buzz-dukick-demo-board-1234567812345678"
         ));
         assert!(!is_deep_link_for_scheme(
-            "buzz://message?id=1",
-            "buzz-demo-board-1234567812345678"
+            "buzz-dukick://message?id=1",
+            "buzz-dukick-demo-board-1234567812345678"
         ));
     }
 
     #[test]
     fn production_and_named_demo_nests_are_distinct() {
-        assert_eq!(nest_name_for(None, false), ".buzz");
+        assert_eq!(nest_name_for(None, false), ".buzz-dukick");
         assert_eq!(
             nest_name_for(Some("workstream-board"), false),
-            ".buzz-demo-workstream-board"
+            ".buzz-dukick-demo-workstream-board"
         );
         assert_eq!(
             nest_name_for(Some("second-demo"), false),
-            ".buzz-demo-second-demo"
+            ".buzz-dukick-demo-second-demo"
         );
     }
 }

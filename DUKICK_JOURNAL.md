@@ -12,7 +12,7 @@
 - Parallel smoke: PASS — Dukick release process ran simultaneously with the existing desktop process; no identity/key/token/cookie was read or imported. Official installer mtime was observed before/after unchanged.
 - Verification: `cargo fmt --all -- --check` PASS; build-identity tests PASS (5 passed, 1 ignored); `dukick_builds_use_a_distinct_keyring_service` PASS (1 passed); `pnpm --dir desktop typecheck` PASS; `pnpm --dir desktop test` PASS; Tauri NSIS build PASS.
 - The Tauri test config used to bypass only the missing external-binary list was process-local and has been removed; no test-only config remains in the checkout.
-- B1 DONE 25666cb10 (identity separation, updater-off, distinct icon, release/NSIS smoke build).
+- B1 DONE 5c1504857 (identity separation, updater-off, distinct icon, release/NSIS smoke build).
 - B2/B3/B4: not started; this journal must not claim READY FOR AUDIT until those slices are implemented and verified.
 - No push or PR.
 

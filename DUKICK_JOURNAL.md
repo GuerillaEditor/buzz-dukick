@@ -16,4 +16,4 @@
 - B2/B3/B4: not started; this journal must not claim READY FOR AUDIT until those slices are implemented and verified.
 - No push or PR.
 
-BLOCKED: B1 cannot be verified or committed because the checkout lacks the Tauri external binaries required by the build script; dev/release packaging and icon verification remain incomplete.
+BLOCKED: B2/B3/B4 chưa triển khai trong lượt này; chưa đủ điều kiện `READY FOR AUDIT`.

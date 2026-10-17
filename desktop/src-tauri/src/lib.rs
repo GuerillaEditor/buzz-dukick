@@ -99,7 +99,7 @@ use tauri_plugin_window_state::StateFlags;
 #[cfg(target_os = "macos")]
 use tray_menu::show_main_window;
 use workbench::{
-    workbench_browser_activate, workbench_browser_close, workbench_browser_history,
+    start_mcp, workbench_browser_activate, workbench_browser_close, workbench_browser_history,
     workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
     workbench_files_list, workbench_files_preview, workbench_files_read, workbench_files_reveal,
     workbench_files_roots,
@@ -245,6 +245,7 @@ pub fn run() {
         .manage(channel_head_cache::ChannelHeadCacheStore::default())
         .setup(move |app| {
             let app_handle = app.handle().clone();
+            start_mcp(app_handle.clone());
             #[cfg(target_os = "macos")]
             {
                 tray_menu::init(&app_handle)?;

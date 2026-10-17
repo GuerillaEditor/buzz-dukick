@@ -1171,6 +1171,7 @@ dependencies = [
  "portable-pty",
  "regex",
  "reqwest 0.13.4",
+ "rmcp 3.5.1",
  "rodio",
  "rubato",
  "rusqlite",
@@ -5489,7 +5490,7 @@ dependencies = [
  "rand 0.10.2",
  "regex-lite",
  "reqwest 0.13.4",
- "rmcp 3.2.0",
+ "rmcp 3.5.1",
  "rpassword",
  "rustls",
  "same-file",
@@ -5601,7 +5602,7 @@ dependencies = [
  "prost 0.14.4",
  "prost-build 0.14.4",
  "protoc-bin-vendored",
- "rmcp 3.2.0",
+ "rmcp 3.5.1",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -7995,6 +7996,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "process-wrap"
+version = "10.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f21b97672d2dc848e7b25701ab4535618b92f4861c13cc3f7f7bed52ad3c8da"
+dependencies = [
+ "futures",
+ "indexmap 2.14.0",
+ "nix 0.31.3",
+ "tokio",
+ "tracing",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "proptest"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8830,7 +8845,7 @@ dependencies = [
  "chrono",
  "futures",
  "pin-project-lite",
- "process-wrap",
+ "process-wrap 9.1.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -8842,9 +8857,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.2.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42b6914fac0be956fe704a38239c3f44a9f841d1b06a5713d2f638065593f5b5"
+checksum = "ab5023804cbe0304cbe06197ac16e645a0a0d0ffa2953bf735c15c2fa0213350"
 dependencies = [
  "async-trait",
  "base64 0.23.1",
@@ -8857,7 +8872,7 @@ dependencies = [
  "indexmap 2.14.0",
  "pastey",
  "pin-project-lite",
- "process-wrap",
+ "process-wrap 10.0.1",
  "rand 0.10.2",
  "reqwest 0.13.4",
  "rmcp-macros",
@@ -8876,9 +8891,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "3.2.0"
+version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdf1c49bd4d52014b94db0877410db273c2008f01628b0252a2e9460ad9b7fda"
+checksum = "a1da498700030856ba63114bceefa30ba21f5e278cb975e5b9de3529fe842b40"
 dependencies = [
  "darling 0.24.1",
  "proc-macro2",

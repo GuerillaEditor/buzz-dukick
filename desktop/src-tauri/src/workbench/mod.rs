@@ -1,7 +1,12 @@
 mod browser;
 mod files;
+mod mcp;
+mod mcp_auth;
+mod mcp_tools;
 mod path_guard;
 mod profiles;
+
+pub use mcp::start as start_mcp;
 
 pub use browser::{
     workbench_browser_activate, workbench_browser_close, workbench_browser_history,

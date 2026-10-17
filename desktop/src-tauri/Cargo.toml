@@ -146,6 +146,7 @@ regex = "1"
 # Match MeshLLM's SQLite ABI; keep u64 conversions available without mesh-llm.
 rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
 axum = "0.8"
+rmcp = { version = "3.4.1", default-features = false, features = ["server", "macros", "transport-streamable-http-server"] }
 rodio = "0.22"
 earshot = "1.0"
 rubato = "3.0"

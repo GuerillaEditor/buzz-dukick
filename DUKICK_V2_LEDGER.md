@@ -10,8 +10,8 @@
 - Task 2 (S2): complete (initial `f013c3fc2`, completion/security `bbebe159f`; frontend 5/5, Rust 3/3, capability 1/1, typecheck PASS)
 - Task 3 (S3): complete (commit `b77738bb8`; store/bootstrap/workbench 19/19, substrate 25/25, typecheck PASS)
 - Task 4 (S4): complete (commit `90b5deab0`; frontend 39/39, Rust workbench 12/12 including Windows symlink+junction escape, typecheck PASS)
-- Task 5 (S5): pending
-- Final review: pending
+- Task 5 (S5): implementation complete in commits `a33aac2e9`, `e9d373f6c`, `ec776dad7`, `29654768a`, `163c12743`, `1340527da`; focused UI tests/typecheck pass, native Rust/app verification blocked by the external `opusic-sys` CMake `CMAKE_AR-NOTFOUND` failure.
+- Final review: blocked; no `READY FOR AUDIT` until Rust build and native smoke evidence are available.
 
 ## §V invariants
 

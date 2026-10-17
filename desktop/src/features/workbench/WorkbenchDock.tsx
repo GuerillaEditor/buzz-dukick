@@ -1,4 +1,5 @@
 import * as React from "react";
+import { BrowserPanel } from "./BrowserPanel";
 import {
   DEFAULT_WORKBENCH_STATE,
   loadWorkbenchState,
@@ -118,10 +119,12 @@ export function WorkbenchDock() {
             data-panel={state.activeTab}
             role="tabpanel"
           >
-            <strong>
-              {TABS.find((tab) => tab.id === state.activeTab)?.label}
-            </strong>
-            <p>{panelDescription(state.activeTab)}</p>
+            {state.activeTab === "browser" ? <BrowserPanel /> : (
+              <>
+                <strong>{TABS.find((tab) => tab.id === state.activeTab)?.label}</strong>
+                <p>{panelDescription(state.activeTab)}</p>
+              </>
+            )}
           </div>
         </>
       ) : (

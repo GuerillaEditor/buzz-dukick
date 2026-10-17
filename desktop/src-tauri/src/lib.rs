@@ -53,6 +53,7 @@ mod terminal_transport;
 mod tray_menu;
 mod unread_catch_up;
 mod util;
+mod workbench;
 #[cfg(target_os = "linux")]
 pub mod webkit_rendering;
 use app_state::{build_app_state, resolve_persisted_identity, AppState};
@@ -90,6 +91,7 @@ use mesh_llm_stubs::*;
 #[cfg(all(feature = "mesh-llm", target_os = "macos"))]
 use shutdown::{hard_exit_after_mesh_shutdown, relaunch_after_mesh_shutdown};
 use shutdown::{is_restart_request, shut_down_app};
+use workbench::{workbench_browser_close, workbench_browser_history, workbench_browser_navigate, workbench_browser_open, workbench_browser_reload};
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
 #[cfg(target_os = "macos")]
 use tauri::Listener;
@@ -536,6 +538,11 @@ pub fn run() {
             terminal_runtime::terminal_ack,
             terminal_runtime::terminal_viewport_ready,
             terminal_runtime::terminal_focus,
+            workbench_browser_open,
+            workbench_browser_navigate,
+            workbench_browser_reload,
+            workbench_browser_close,
+            workbench_browser_history,
             take_pending_community_deep_link,
             acknowledge_pending_community_deep_link,
             take_pending_navigation_deep_link,

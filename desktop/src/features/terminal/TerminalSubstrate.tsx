@@ -45,6 +45,7 @@ type TerminalSubstrateProps = {
   bracketedPaste: boolean;
   focusReportingEnabled: boolean;
   enabled?: boolean;
+  fitHost?: boolean;
   mode?: "docked" | "maximized";
   visible?: boolean;
   onHide?: () => void;
@@ -84,6 +85,7 @@ export function TerminalSubstrate({
   bracketedPaste,
   focusReportingEnabled,
   enabled = true,
+  fitHost = false,
   mode = "docked",
   visible = true,
   onHide = NOOP,
@@ -482,7 +484,9 @@ export function TerminalSubstrate({
       data-terminal-visible={visible ? "true" : "false"}
       style={{
         ...terminalStyle,
-        ...(mode === "docked" ? { height: dockHeight } : undefined),
+        ...(mode === "docked"
+          ? { height: fitHost ? "100%" : dockHeight }
+          : undefined),
       }}
       onWheel={(event) => {
         event.preventDefault();
@@ -503,7 +507,7 @@ export function TerminalSubstrate({
         if (result.lines !== 0) onScroll(result.lines);
       }}
     >
-      {mode === "docked" ? (
+      {mode === "docked" && !fitHost ? (
         <hr
           aria-label="Resize Buzz Term"
           aria-orientation="horizontal"

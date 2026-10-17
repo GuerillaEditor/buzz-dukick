@@ -4,10 +4,15 @@ export type TerminalPanelMode = "closed" | "docked" | "maximized";
 
 type Snapshot = {
   mode: TerminalPanelMode;
+  newSessionRequestId: number;
   sessionChannelIds: ReadonlySet<string>;
 };
 
-let snapshot: Snapshot = { mode: "closed", sessionChannelIds: new Set() };
+let snapshot: Snapshot = {
+  mode: "closed",
+  newSessionRequestId: 0,
+  sessionChannelIds: new Set(),
+};
 const listeners = new Set<() => void>();
 
 function publish(next: Snapshot) {
@@ -22,6 +27,15 @@ export function setTerminalPanelMode(mode: TerminalPanelMode) {
 
 export function toggleTerminalPanel() {
   setTerminalPanelMode(snapshot.mode === "closed" ? "docked" : "closed");
+}
+
+/** UI-only signal used by future agent adapters without exposing PTY objects. */
+export function requestTerminalSession() {
+  publish({
+    ...snapshot,
+    mode: "docked",
+    newSessionRequestId: snapshot.newSessionRequestId + 1,
+  });
 }
 
 export function setTerminalSessionChannels(channelIds: Iterable<string>) {
@@ -45,7 +59,11 @@ export function useTerminalPanel() {
 }
 
 export function resetTerminalPanelForTests() {
-  snapshot = { mode: "closed", sessionChannelIds: new Set() };
+  snapshot = {
+    mode: "closed",
+    newSessionRequestId: 0,
+    sessionChannelIds: new Set(),
+  };
 }
 
 export function getTerminalPanelSnapshotForTests() {

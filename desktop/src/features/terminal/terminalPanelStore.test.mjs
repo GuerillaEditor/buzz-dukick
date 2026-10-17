@@ -7,6 +7,7 @@ import {
   setTerminalSessionChannels,
   toggleTerminalPanel,
   getTerminalPanelSnapshotForTests,
+  requestTerminalSession,
 } from "./terminalPanelStore.ts";
 
 beforeEach(resetTerminalPanelForTests);
@@ -30,4 +31,13 @@ test("session channel identities are de-duplicated", () => {
     [...getTerminalPanelSnapshotForTests().sessionChannelIds],
     ["one", "two"],
   );
+});
+
+test("a UI-only session request opens the dock and publishes a monotonic signal", () => {
+  assert.equal(getTerminalPanelSnapshotForTests().newSessionRequestId, 0);
+  requestTerminalSession();
+  assert.equal(getTerminalPanelSnapshotForTests().mode, "docked");
+  assert.equal(getTerminalPanelSnapshotForTests().newSessionRequestId, 1);
+  requestTerminalSession();
+  assert.equal(getTerminalPanelSnapshotForTests().newSessionRequestId, 2);
 });

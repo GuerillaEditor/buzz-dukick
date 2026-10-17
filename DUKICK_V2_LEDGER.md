@@ -12,3 +12,13 @@
 - Task 4 (S4): pending
 - Task 5 (S5): pending
 - Final review: pending
+
+## §V invariants
+
+- V1: Closing or leaving the Browser workbench surface unmounts `BrowserPanel`, which hides every native child webview.
+- V2: A terminal-mode transition from open to closed also closes the Terminal workbench dock; it must not leave an empty visible dock.
+
+## §B backprop log
+
+- B1|2026-10-17|Workbench kept BrowserPanel mounted behind a hidden parent, so native child webviews could remain visible|V1
+- B2|2026-10-17|Terminal store close was not synchronized back to Workbench open state, leaving an empty dock|V2

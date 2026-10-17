@@ -1,5 +1,6 @@
 import * as React from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import { createPortal } from "react-dom";
 
 import {
   type TerminalDelivery,
@@ -82,6 +83,7 @@ export function TerminalBootstrap({
   const [sessions, setSessions] = React.useState<Session[]>([]);
   const [activeKey, setActiveKey] = React.useState<string | null>(null);
   const [available, setAvailable] = React.useState(() => isTauri());
+  const [portalHost, setPortalHost] = React.useState<HTMLElement | null>(null);
   const panel = useTerminalPanel();
   const [renderedMode, setRenderedMode] = React.useState<
     "docked" | "maximized"
@@ -99,6 +101,10 @@ export function TerminalBootstrap({
   const acknowledgedSequenceRef = React.useRef(new Map<string, number>());
   const sessionsRef = React.useRef(sessions);
   sessionsRef.current = sessions;
+
+  React.useLayoutEffect(() => {
+    setPortalHost(document.getElementById("buzz-terminal-dock-host"));
+  }, []);
 
   React.useEffect(() => {
     const previousMode = previousPanelModeRef.current;
@@ -273,6 +279,9 @@ export function TerminalBootstrap({
         : [],
     [contextChannelId, sessions],
   );
+  const handledSessionRequestRef = React.useRef(panel.newSessionRequestId);
+  const sessionRequestPending =
+    handledSessionRequestRef.current !== panel.newSessionRequestId;
 
   React.useEffect(() => {
     setTerminalSessionChannels(
@@ -281,7 +290,14 @@ export function TerminalBootstrap({
   }, [sessions]);
 
   React.useEffect(() => {
+    if (!sessionRequestPending) return;
+    handledSessionRequestRef.current = panel.newSessionRequestId;
+    createSession();
+  }, [createSession, panel.newSessionRequestId, sessionRequestPending]);
+
+  React.useEffect(() => {
     if (panel.mode === "closed" || !available || !context) return;
+    if (sessionRequestPending) return;
     if (channelSessions.length === 0) createSession();
     else if (!channelSessions.some((session) => session.key === activeKey))
       setActiveKey(channelSessions.at(-1)?.key ?? null);
@@ -292,6 +308,7 @@ export function TerminalBootstrap({
     context,
     createSession,
     panel.mode,
+    sessionRequestPending,
   ]);
 
   React.useEffect(() => {
@@ -358,11 +375,12 @@ export function TerminalBootstrap({
 
   if (!panelMounted) return null;
 
-  return (
+  const substrate = (
     <TerminalSubstrate
       bracketedPaste={active?.frame?.bracketedPaste ?? false}
       channelName={active?.context.channelName ?? channelName}
       enabled={available && Boolean(context)}
+      fitHost
       mode={renderedMode}
       visible={panelVisible}
       onHide={() => setTerminalPanelMode("closed")}
@@ -435,4 +453,12 @@ export function TerminalBootstrap({
         }))}
     />
   );
+  if (portalHost) return createPortal(substrate, portalHost);
+  return (
+    globalThis as typeof globalThis & {
+      __BUZZ_TERMINAL_INLINE_TEST__?: boolean;
+    }
+  ).__BUZZ_TERMINAL_INLINE_TEST__
+    ? substrate
+    : null;
 }

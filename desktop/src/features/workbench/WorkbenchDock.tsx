@@ -1,4 +1,8 @@
 import * as React from "react";
+import {
+  setTerminalPanelMode,
+  useTerminalPanel,
+} from "../terminal/terminalPanelStore";
 import { BrowserPanel } from "./BrowserPanel";
 import {
   DEFAULT_WORKBENCH_STATE,
@@ -32,10 +36,31 @@ export function WorkbenchDock() {
       typeof window === "undefined" ? null : window.localStorage,
     ),
   );
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+  const terminalPanel = useTerminalPanel();
+  const previousTerminalModeRef = React.useRef(terminalPanel.mode);
 
   React.useEffect(() => {
     saveWorkbenchState(state, window.localStorage);
   }, [state]);
+
+  React.useEffect(() => {
+    const previousMode = previousTerminalModeRef.current;
+    previousTerminalModeRef.current = terminalPanel.mode;
+    if (terminalPanel.mode !== "closed") {
+      setState((current) => ({
+        ...current,
+        activeTab: "terminal",
+        isOpen: true,
+      }));
+    } else if (
+      previousMode !== "closed" &&
+      stateRef.current.activeTab === "terminal"
+    ) {
+      setState((current) => ({ ...current, isOpen: false }));
+    }
+  }, [terminalPanel.mode]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -46,15 +71,22 @@ export function WorkbenchDock() {
         !event.altKey
       ) {
         event.preventDefault();
-        setState((current) => ({ ...current, isOpen: !current.isOpen }));
+        const current = stateRef.current;
+        const isOpen = !current.isOpen;
+        setState({ ...current, isOpen });
+        if (current.activeTab === "terminal") {
+          setTerminalPanelMode(isOpen ? "docked" : "closed");
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const setActiveTab = (activeTab: WorkbenchTab) =>
+  const setActiveTab = (activeTab: WorkbenchTab) => {
+    setTerminalPanelMode(activeTab === "terminal" ? "docked" : "closed");
     setState((current) => ({ ...current, activeTab, isOpen: true }));
+  };
   const setWidth = (width: number) =>
     setState((current) => ({
       ...current,
@@ -93,9 +125,10 @@ export function WorkbenchDock() {
             <button
               aria-label="Close workbench"
               className="buzz-workbench-dock-close"
-              onClick={() =>
-                setState((current) => ({ ...current, isOpen: false }))
-              }
+              onClick={() => {
+                setTerminalPanelMode("closed");
+                setState((current) => ({ ...current, isOpen: false }));
+              }}
               type="button"
             >
               ×
@@ -113,30 +146,43 @@ export function WorkbenchDock() {
               value={state.width}
             />
           </div>
-          <div
-            aria-label={`${state.activeTab} panel`}
-            className="buzz-workbench-dock-panel"
-            data-panel={state.activeTab}
-            role="tabpanel"
-          >
-            {state.activeTab === "browser" ? <BrowserPanel /> : (
-              <>
-                <strong>{TABS.find((tab) => tab.id === state.activeTab)?.label}</strong>
-                <p>{panelDescription(state.activeTab)}</p>
-              </>
-            )}
-          </div>
         </>
       ) : (
         <button
           aria-label="Open workbench"
           className="buzz-workbench-dock-open"
-          onClick={() => setState((current) => ({ ...current, isOpen: true }))}
+          onClick={() => {
+            if (state.activeTab === "terminal") setTerminalPanelMode("docked");
+            setState((current) => ({ ...current, isOpen: true }));
+          }}
           type="button"
         >
           Workbench
         </button>
       )}
+      <div
+        aria-label={`${state.activeTab} panel`}
+        className="buzz-workbench-dock-panel"
+        data-panel={state.activeTab}
+        hidden={!state.isOpen}
+        role="tabpanel"
+      >
+        {state.isOpen && state.activeTab === "browser" ? (
+          <BrowserPanel />
+        ) : null}
+        <div
+          className="buzz-terminal-dock-host buzz-workbench-terminal-host"
+          data-terminal-dock
+          hidden={state.activeTab !== "terminal"}
+          id="buzz-terminal-dock-host"
+        />
+        {state.isOpen && state.activeTab === "files" ? (
+          <>
+            <strong>Files</strong>
+            <p>{panelDescription("files")}</p>
+          </>
+        ) : null}
+      </div>
     </aside>
   );
 }

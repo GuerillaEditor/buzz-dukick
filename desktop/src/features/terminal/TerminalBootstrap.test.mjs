@@ -30,6 +30,7 @@ before(async () => {
     HTMLCanvasElement: dom.window.HTMLCanvasElement,
     KeyboardEvent: dom.window.KeyboardEvent,
     IS_REACT_ACT_ENVIRONMENT: true,
+    __BUZZ_TERMINAL_INLINE_TEST__: true,
     isTauri: true,
     window: dom.window,
   });
@@ -129,7 +130,9 @@ before(async () => {
 });
 
 after(() => dom.window.close());
-beforeEach(() => setTerminalPanelMode("docked"));
+beforeEach(() => {
+  setTerminalPanelMode("docked");
+});
 afterEach(async () => {
   const { cleanup } = await import("@testing-library/react");
   cleanup();
@@ -651,5 +654,67 @@ test("a non-channel route closes the panel and ignores the terminal shortcut", a
     window.dispatchEvent(new KeyboardEvent("keyup", chord));
   });
   assert.equal(getTerminalPanelSnapshotForTests().mode, "closed");
+  view.unmount();
+});
+
+test("UI session requests reuse the mounted bootstrap and attach one new session", async () => {
+  const { createElement } = await import("react");
+  const { act, render, waitFor } = await import("@testing-library/react");
+  const { ThemeProvider } = await import("@/shared/theme/ThemeProvider");
+  const { TerminalBootstrap } = await import("./TerminalBootstrap.tsx");
+  const { requestTerminalSession, setTerminalPanelMode } = await import(
+    "./terminalPanelStore.ts"
+  );
+
+  const view = render(
+    createElement(
+      ThemeProvider,
+      null,
+      createElement(TerminalBootstrap, {
+        channelId: "channel-1",
+        channelName: "general",
+        npub: "npub1owner",
+        relayUrl: "wss://relay.example",
+        threadId: null,
+      }),
+    ),
+  );
+  await waitFor(() =>
+    assert.equal(
+      calls.filter(({ command }) => command === "terminal_attach").length,
+      1,
+    ),
+  );
+  const substrate = view.container.querySelector(".buzz-terminal-substrate");
+  assert.ok(substrate);
+
+  await act(async () => requestTerminalSession());
+  await waitFor(() =>
+    assert.equal(
+      calls.filter(({ command }) => command === "terminal_attach").length,
+      2,
+    ),
+  );
+  assert.equal(
+    view.container.querySelector(".buzz-terminal-substrate"),
+    substrate,
+  );
+
+  await act(async () => {
+    setTerminalPanelMode("closed");
+    await new Promise((resolve) => window.setTimeout(resolve, 220));
+    setTerminalPanelMode("docked");
+  });
+  await waitFor(() =>
+    assert.equal(
+      view.container.querySelectorAll(".buzz-terminal-tab").length,
+      2,
+    ),
+  );
+  assert.equal(
+    calls.filter(({ command }) => command === "terminal_attach").length,
+    2,
+    "hiding and restoring the dock must reuse existing PTY sessions",
+  );
   view.unmount();
 });

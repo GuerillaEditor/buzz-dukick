@@ -48,6 +48,17 @@ impl McpHandler {
         let _ = self
             .app
             .emit("workbench-agent-activity", json!({"tool":name}));
+        if name.starts_with("browser_") {
+            let _ = self.app.emit(
+                "workbench-mcp-browser-command",
+                json!({"action": name, "arguments": params.values}),
+            );
+        } else if name == "terminal_run" {
+            let _ = self.app.emit(
+                "workbench-mcp-terminal-run",
+                json!({"requestId": uuid::Uuid::new_v4().to_string(), "command": params.values.get("command").and_then(Value::as_str).unwrap_or("")}),
+            );
+        }
         Ok(CallToolResult::success(vec![rmcp::model::Content::text(
             format!("{name} queued to visible workbench"),
         )]))

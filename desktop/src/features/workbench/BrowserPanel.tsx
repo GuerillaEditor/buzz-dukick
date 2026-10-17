@@ -1,5 +1,7 @@
 import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   BROWSER_PRESETS_UPDATED_EVENT,
@@ -52,46 +54,79 @@ export function BrowserPanel() {
     };
   }, [active.nativeLabel]);
 
-  const open = async (
-    tabId: string,
-    nextUrl: string,
-    profile: BrowserProfile,
-  ) => {
-    const safeUrl = normalizeBrowserUrl(nextUrl);
-    const currentTab = state.tabs.find((tab) => tab.id === tabId);
-    const next = {
-      ...state,
-      activeTabId: tabId,
-      tabs: state.tabs.map((tab) =>
-        tab.id === tabId ? { ...tab, url: safeUrl, profile } : tab,
-      ),
-    };
-    setState(next);
-    setUrl(safeUrl);
-    try {
-      if (currentTab?.nativeLabel && currentTab.profile === profile) {
-        await invoke("workbench_browser_navigate", {
-          label: currentTab.nativeLabel,
-          url: safeUrl,
-        });
-      } else {
-        if (currentTab?.nativeLabel) {
-          await invoke("workbench_browser_close", {
+  const open = React.useCallback(
+    async (tabId: string, nextUrl: string, profile: BrowserProfile) => {
+      const safeUrl = normalizeBrowserUrl(nextUrl);
+      const currentTab = state.tabs.find((tab) => tab.id === tabId);
+      const next = {
+        ...state,
+        activeTabId: tabId,
+        tabs: state.tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, url: safeUrl, profile } : tab,
+        ),
+      };
+      setState(next);
+      setUrl(safeUrl);
+      try {
+        if (currentTab?.nativeLabel && currentTab.profile === profile) {
+          await invoke("workbench_browser_navigate", {
             label: currentTab.nativeLabel,
+            url: safeUrl,
           });
+        } else {
+          if (currentTab?.nativeLabel) {
+            await invoke("workbench_browser_close", {
+              label: currentTab.nativeLabel,
+            });
+          }
+          const result = await invoke<BrowserOpenResult>(
+            "workbench_browser_open",
+            { profile, url: safeUrl },
+          );
+          setState((current) =>
+            setBrowserNativeLabel(current, tabId, result.label),
+          );
         }
-        const result = await invoke<BrowserOpenResult>(
-          "workbench_browser_open",
-          { profile, url: safeUrl },
-        );
-        setState((current) =>
-          setBrowserNativeLabel(current, tabId, result.label),
-        );
+      } catch (error) {
+        console.warn("Native browser webview unavailable", error);
       }
-    } catch (error) {
-      console.warn("Native browser webview unavailable", error);
-    }
-  };
+    },
+    [state],
+  );
+
+  React.useEffect(() => {
+    if (!isTauri()) return;
+    const unlisten = listen<{
+      action?: string;
+      tabId?: string;
+      url?: string;
+      profile?: BrowserProfile;
+      arguments?: { tabId?: string; url?: string; profile?: BrowserProfile };
+    }>("workbench-mcp-browser-command", (event) => {
+      const payload = event.payload ?? {};
+      const action = payload.action;
+      const args = payload.arguments ?? {};
+      const tabId = payload.tabId ?? args.tabId;
+      const url = payload.url ?? args.url;
+      const profile = payload.profile ?? args.profile;
+      if (typeof url !== "string" || !url.trim()) return;
+      if (
+        (action === "navigate" || action === "browser_navigate") &&
+        typeof tabId === "string"
+      ) {
+        const target = state.tabs.find((tab) => tab.id === tabId);
+        if (target) void open(tabId, url, profile ?? target.profile);
+        return;
+      }
+      if (action === "open" || action === "browser_open") {
+        void open(active.id, url, profile ?? active.profile);
+      }
+    });
+    return () =>
+      void unlisten.then((stop) => {
+        if (typeof stop === "function") stop();
+      });
+  }, [state, open, active.id, active.profile]);
 
   const addTab = () => {
     const next = createBrowserTab(state, {

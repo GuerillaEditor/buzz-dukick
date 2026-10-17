@@ -1,5 +1,6 @@
 import * as React from "react";
 import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { createPortal } from "react-dom";
 
 import {
@@ -17,6 +18,7 @@ import {
   setTerminalSessionChannels,
   toggleTerminalPanel,
   useTerminalPanel,
+  requestTerminalAgentCommand,
 } from "./terminalPanelStore";
 
 type TerminalContext = {
@@ -35,6 +37,7 @@ type Session = {
   title: string;
   closing: boolean;
   context: TerminalContext;
+  pendingCommand?: string;
 };
 
 const INITIAL_SIZE: TerminalViewportSize = {
@@ -150,6 +153,34 @@ export function TerminalBootstrap({
   }, [context, panel.mode]);
 
   React.useEffect(() => {
+    if (
+      !isTauri() ||
+      typeof (
+        globalThis as { __TAURI_INTERNALS__?: { unregisterListener?: unknown } }
+      ).__TAURI_INTERNALS__?.unregisterListener !== "function"
+    )
+      return;
+    let disposed = false;
+    const unlisten = listen<{ requestId?: string; command?: string }>(
+      "workbench-mcp-terminal-run",
+      (event) => {
+        const command = event.payload?.command;
+        const requestId = event.payload?.requestId;
+        if (typeof command !== "string" || typeof requestId !== "string")
+          return;
+        requestTerminalAgentCommand(command, requestId);
+      },
+    );
+    return () => {
+      disposed = true;
+      void unlisten.then((stop) => {
+        if (!disposed || typeof stop !== "function") return;
+        stop();
+      });
+    };
+  }, []);
+
+  React.useEffect(() => {
     const toggle = (event: KeyboardEvent) => {
       if (
         !context ||
@@ -189,85 +220,93 @@ export function TerminalBootstrap({
     });
   }, []);
 
-  const createSession = React.useCallback(() => {
-    const spawnContext = contextRef.current;
-    if (!available || !spawnContext) return;
-    const key = crypto.randomUUID();
-    const initial: Session = {
-      key,
-      connection: null,
-      delivery: null,
-      frame: undefined,
-      title: "SHELL",
-      closing: false,
-      context: spawnContext,
-    };
-    setSessions((current) => [...current, initial]);
-    setActiveKey(key);
+  const createSession = React.useCallback(
+    (pendingCommand?: string) => {
+      const spawnContext = contextRef.current;
+      if (!available || !spawnContext) return;
+      const key = crypto.randomUUID();
+      const initial: Session = {
+        key,
+        connection: null,
+        delivery: null,
+        frame: undefined,
+        title: "SHELL",
+        closing: false,
+        context: spawnContext,
+        pendingCommand,
+      };
+      setSessions((current) => [...current, initial]);
+      setActiveKey(key);
 
-    const update = (apply: (session: Session) => Session) => {
-      if (!mountedRef.current) return;
-      setSessions((current) =>
-        current.map((session) =>
-          session.key === key ? apply(session) : session,
-        ),
-      );
-    };
-    const onMessage = (
-      message: Exclude<TerminalMessage, { type: "frame" }>,
-    ) => {
-      if (message.type === "exit") {
-        removeSession(key);
-      } else if (message.type === "title") {
-        update((session) => ({
-          ...session,
-          title: message.payload || "SHELL",
-        }));
-      } else if (message.type === "resetTitle") {
-        update((session) => ({ ...session, title: "SHELL" }));
-      }
-    };
-    const onFrame = (delivery: TerminalDelivery) => {
-      update((session) => ({ ...session, delivery, frame: delivery.frame }));
-    };
-
-    const size = sizeRef.current;
-    void TerminalConnection.attach(
-      {
-        ...spawnContext,
-        threadId: spawnContext.threadId ?? undefined,
-        ...size,
-      },
-      onMessage,
-      onFrame,
-    )
-      .then((connection) => {
-        if (!mountedRef.current) return connection.detach();
-        if (closedSessionKeysRef.current.delete(key)) return connection.close();
-        connectionSizesRef.current.set(connection, size);
-        update((session) => ({ ...session, connection }));
-        if (sizeRef.current !== size) {
-          const currentSize = sizeRef.current;
-          resizeChainRef.current = resizeChainRef.current
-            .then(async () => {
-              const viewport = await connection.resize(
-                currentSize.columns,
-                currentSize.rows,
-                currentSize.pixelWidth,
-                currentSize.pixelHeight,
-              );
-              connectionSizesRef.current.set(connection, currentSize);
-              await connection.viewportReady(viewport);
-            })
-            .catch(fail);
+      const update = (apply: (session: Session) => Session) => {
+        if (!mountedRef.current) return;
+        setSessions((current) =>
+          current.map((session) =>
+            session.key === key ? apply(session) : session,
+          ),
+        );
+      };
+      const onMessage = (
+        message: Exclude<TerminalMessage, { type: "frame" }>,
+      ) => {
+        if (message.type === "exit") {
+          removeSession(key);
+        } else if (message.type === "title") {
+          update((session) => ({
+            ...session,
+            title: message.payload || "SHELL",
+          }));
+        } else if (message.type === "resetTitle") {
+          update((session) => ({ ...session, title: "SHELL" }));
         }
-      })
-      .catch((error) => {
-        if (closedSessionKeysRef.current.delete(key)) return;
-        removeSession(key);
-        fail(error);
-      });
-  }, [available, fail, removeSession]);
+      };
+      const onFrame = (delivery: TerminalDelivery) => {
+        update((session) => ({ ...session, delivery, frame: delivery.frame }));
+      };
+
+      const size = sizeRef.current;
+      void TerminalConnection.attach(
+        {
+          ...spawnContext,
+          threadId: spawnContext.threadId ?? undefined,
+          ...size,
+        },
+        onMessage,
+        onFrame,
+      )
+        .then((connection) => {
+          if (!mountedRef.current) return connection.detach();
+          if (closedSessionKeysRef.current.delete(key))
+            return connection.close();
+          connectionSizesRef.current.set(connection, size);
+          update((session) => ({ ...session, connection }));
+          if (pendingCommand) {
+            void connection.input(`${pendingCommand}\n`).catch(fail);
+          }
+          if (sizeRef.current !== size) {
+            const currentSize = sizeRef.current;
+            resizeChainRef.current = resizeChainRef.current
+              .then(async () => {
+                const viewport = await connection.resize(
+                  currentSize.columns,
+                  currentSize.rows,
+                  currentSize.pixelWidth,
+                  currentSize.pixelHeight,
+                );
+                connectionSizesRef.current.set(connection, currentSize);
+                await connection.viewportReady(viewport);
+              })
+              .catch(fail);
+          }
+        })
+        .catch((error) => {
+          if (closedSessionKeysRef.current.delete(key)) return;
+          removeSession(key);
+          fail(error);
+        });
+    },
+    [available, fail, removeSession],
+  );
 
   const contextChannelId = context?.channelId ?? null;
   const channelSessions = React.useMemo(
@@ -292,8 +331,13 @@ export function TerminalBootstrap({
   React.useEffect(() => {
     if (!sessionRequestPending) return;
     handledSessionRequestRef.current = panel.newSessionRequestId;
-    createSession();
-  }, [createSession, panel.newSessionRequestId, sessionRequestPending]);
+    createSession(panel.agentCommand?.command);
+  }, [
+    createSession,
+    panel.agentCommand?.command,
+    panel.newSessionRequestId,
+    sessionRequestPending,
+  ]);
 
   React.useEffect(() => {
     if (panel.mode === "closed" || !available || !context) return;

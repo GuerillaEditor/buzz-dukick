@@ -2,15 +2,22 @@ import * as React from "react";
 
 export type TerminalPanelMode = "closed" | "docked" | "maximized";
 
+export type TerminalAgentCommand = {
+  requestId: string;
+  command: string;
+};
+
 type Snapshot = {
   mode: TerminalPanelMode;
   newSessionRequestId: number;
+  agentCommand: TerminalAgentCommand | null;
   sessionChannelIds: ReadonlySet<string>;
 };
 
 let snapshot: Snapshot = {
   mode: "closed",
   newSessionRequestId: 0,
+  agentCommand: null,
   sessionChannelIds: new Set(),
 };
 const listeners = new Set<() => void>();
@@ -38,6 +45,24 @@ export function requestTerminalSession() {
   });
 }
 
+/**
+ * Adapter for the local Workbench MCP bridge. It carries only a command string
+ * and a request id; PTY handles stay inside TerminalBootstrap.
+ */
+export function requestTerminalAgentCommand(
+  command: string,
+  requestId: string,
+) {
+  const trimmed = command.trim();
+  if (!trimmed || !requestId) return;
+  publish({
+    ...snapshot,
+    mode: "docked",
+    newSessionRequestId: snapshot.newSessionRequestId + 1,
+    agentCommand: { command: trimmed, requestId },
+  });
+}
+
 export function setTerminalSessionChannels(channelIds: Iterable<string>) {
   const next = new Set(channelIds);
   if (
@@ -62,6 +87,7 @@ export function resetTerminalPanelForTests() {
   snapshot = {
     mode: "closed",
     newSessionRequestId: 0,
+    agentCommand: null,
     sessionChannelIds: new Set(),
   };
 }

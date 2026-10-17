@@ -1,4 +1,6 @@
 import * as React from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   setTerminalPanelMode,
   useTerminalPanel,
@@ -30,6 +32,26 @@ export function WorkbenchDock() {
   stateRef.current = state;
   const terminalPanel = useTerminalPanel();
   const previousTerminalModeRef = React.useRef(terminalPanel.mode);
+  const [agentActive, setAgentActive] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isTauri()) return;
+    let timeout: number | undefined;
+    const unlisten = listen<{ active?: boolean }>(
+      "workbench-agent-activity",
+      (event) => {
+        setAgentActive(event.payload?.active !== false);
+        if (timeout !== undefined) window.clearTimeout(timeout);
+        timeout = window.setTimeout(() => setAgentActive(false), 1500);
+      },
+    );
+    return () => {
+      if (timeout !== undefined) window.clearTimeout(timeout);
+      void unlisten.then((stop) => {
+        if (typeof stop === "function") stop();
+      });
+    };
+  }, []);
 
   React.useEffect(() => {
     saveWorkbenchState(state, window.localStorage);
@@ -123,6 +145,15 @@ export function WorkbenchDock() {
             >
               ×
             </button>
+            {agentActive ? (
+              <span
+                className="buzz-workbench-agent-badge"
+                role="status"
+                title="Agent using workbench"
+              >
+                Agent using
+              </span>
+            ) : null}
           </header>
           <div className="buzz-workbench-dock-resize">
             <label htmlFor="buzz-workbench-width">Dock width</label>

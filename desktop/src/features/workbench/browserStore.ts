@@ -1,3 +1,5 @@
+import * as React from "react";
+
 import { normalizeBrowserUrl } from "./browserPresets";
 
 export const BROWSER_STORAGE_KEY = "buzz-dukick.browser";
@@ -17,6 +19,7 @@ export type BrowserTab = {
   url: string;
   title?: string;
   nativeLabel?: string;
+  loading?: boolean;
 };
 export type BrowserState = { activeTabId: string; tabs: BrowserTab[] };
 
@@ -82,7 +85,9 @@ export function saveBrowserState(
   try {
     const persisted = {
       ...state,
-      tabs: state.tabs.map(({ nativeLabel: _nativeLabel, ...tab }) => tab),
+      tabs: state.tabs.map(
+        ({ nativeLabel: _nativeLabel, loading: _loading, ...tab }) => tab,
+      ),
     };
     storage?.setItem(BROWSER_STORAGE_KEY, JSON.stringify(persisted));
   } catch {
@@ -138,4 +143,73 @@ export function closeBrowserTab(
         : state.activeTabId,
     tabs,
   };
+}
+
+export function patchBrowserTab(
+  state: BrowserState,
+  tabId: string,
+  patch: Partial<Omit<BrowserTab, "id">>,
+): BrowserState {
+  return {
+    ...state,
+    tabs: state.tabs.map((tab) =>
+      tab.id === tabId ? { ...tab, ...patch } : tab,
+    ),
+  };
+}
+
+/** Apply a webview-reported change (title / url / loading) to its tab. */
+export function patchBrowserTabByLabel(
+  state: BrowserState,
+  nativeLabel: string,
+  patch: { title?: string; url?: string; loading?: boolean },
+): BrowserState {
+  const tab = state.tabs.find((item) => item.nativeLabel === nativeLabel);
+  if (!tab) return state;
+  const next: Partial<BrowserTab> = {};
+  if (typeof patch.title === "string") next.title = patch.title.slice(0, 200);
+  if (typeof patch.url === "string") {
+    const url = normalizeBrowserUrl(patch.url);
+    if (url !== "about:blank") next.url = url;
+  }
+  if (typeof patch.loading === "boolean") next.loading = patch.loading;
+  return patchBrowserTab(state, tab.id, next);
+}
+
+// Module-level store so webview labels survive the Browser pane unmounting.
+let browserSnapshot: BrowserState | null = null;
+const browserListeners = new Set<() => void>();
+
+export function getBrowserState(): BrowserState {
+  if (!browserSnapshot) {
+    browserSnapshot = loadBrowserState(
+      typeof window === "undefined" ? null : window.localStorage,
+    );
+  }
+  return browserSnapshot;
+}
+
+export function updateBrowserState(
+  apply: (state: BrowserState) => BrowserState,
+) {
+  const previous = getBrowserState();
+  const next = apply(previous);
+  if (next === previous) return;
+  browserSnapshot = next;
+  saveBrowserState(
+    next,
+    typeof window === "undefined" ? null : window.localStorage,
+  );
+  for (const listener of browserListeners) listener();
+}
+
+export function useBrowserState(): BrowserState {
+  return React.useSyncExternalStore(
+    (listener) => {
+      browserListeners.add(listener);
+      return () => browserListeners.delete(listener);
+    },
+    getBrowserState,
+    getBrowserState,
+  );
 }

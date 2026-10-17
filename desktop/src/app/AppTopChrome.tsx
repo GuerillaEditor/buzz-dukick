@@ -8,6 +8,7 @@ import { DrawerPanelIcon } from "@/shared/ui/DrawerPanelIcon";
 import { cn } from "@/shared/lib/cn";
 import { topChromeBackdrop } from "@/shared/layout/chromeLayout";
 import { useOptionalSidebar } from "@/shared/ui/sidebar";
+import { WorkbenchToggles } from "@/features/workbench/WorkbenchPanes";
 
 type AppTopChromeProps = {
   canGoBack: boolean;
@@ -160,6 +161,9 @@ export function AppTopChrome({
         data-tauri-drag-region
         id="app-top-chrome-content"
       />
+      <div className={cn("flex shrink-0 items-center", navRowAlignmentClass)}>
+        <WorkbenchToggles />
+      </div>
     </div>
   );
 }

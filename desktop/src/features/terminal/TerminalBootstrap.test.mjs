@@ -394,7 +394,7 @@ test("opening a tab keeps terminal ownership while its attachment is pending", a
   view.unmount();
 });
 
-test("restoring a channel resizes its PTY to the current dock viewport", async () => {
+test("switching channels keeps one shared terminal session (Dukick)", async () => {
   const { createElement } = await import("react");
   const { act, render, waitFor } = await import("@testing-library/react");
   const { ThemeProvider } = await import("@/shared/theme/ThemeProvider");
@@ -425,29 +425,8 @@ test("restoring a channel resizes its PTY to the current dock viewport", async (
   );
 
   view.rerender(tree("channel-b", "beta"));
-  await waitFor(() =>
-    assert.ok(
-      calls.some(
-        ({ command, args }) =>
-          command === "terminal_attach" &&
-          args.request.channelId === "channel-b",
-      ),
-    ),
-  );
   canvasWidth = 1_680;
   await act(async () => resizeCallback());
-  await waitFor(() =>
-    assert.ok(
-      calls.some(
-        ({ command, args }) =>
-          command === "terminal_resize" &&
-          args.sessionId === "session-2" &&
-          args.columns === 200,
-      ),
-    ),
-  );
-
-  view.rerender(tree("channel-a", "alpha"));
   await waitFor(() =>
     assert.ok(
       calls.some(
@@ -457,6 +436,10 @@ test("restoring a channel resizes its PTY to the current dock viewport", async (
           args.columns === 200,
       ),
     ),
+  );
+  assert.equal(
+    calls.filter(({ command }) => command === "terminal_attach").length,
+    1,
   );
   view.unmount();
 });
@@ -617,9 +600,9 @@ test("wheel deltas reach terminal_scroll with the DOM sign intact", async () => 
   view.unmount();
 });
 
-test("a non-channel route closes the panel and ignores the terminal shortcut", async () => {
+test("outside a channel the terminal still opens (Dukick workbench)", async () => {
   const { createElement } = await import("react");
-  const { act, render, waitFor } = await import("@testing-library/react");
+  const { render, waitFor } = await import("@testing-library/react");
   const { ThemeProvider } = await import("@/shared/theme/ThemeProvider");
   const { TerminalBootstrap } = await import("./TerminalBootstrap.tsx");
   const { getTerminalPanelSnapshotForTests } = await import(
@@ -634,26 +617,22 @@ test("a non-channel route closes the panel and ignores the terminal shortcut", a
       createElement(TerminalBootstrap, {
         channelId: null,
         channelName: null,
-        npub: "npub1owner",
-        relayUrl: "wss://relay.example",
+        npub: null,
+        relayUrl: null,
         threadId: null,
       }),
     ),
   );
   await waitFor(() =>
-    assert.equal(getTerminalPanelSnapshotForTests().mode, "closed"),
+    assert.ok(
+      calls.some(
+        ({ command, args }) =>
+          command === "terminal_attach" &&
+          args.request.channelId === "workbench",
+      ),
+    ),
   );
-
-  const chord = {
-    bubbles: true,
-    code: "KeyJ",
-    metaKey: true,
-  };
-  act(() => {
-    window.dispatchEvent(new KeyboardEvent("keydown", chord));
-    window.dispatchEvent(new KeyboardEvent("keyup", chord));
-  });
-  assert.equal(getTerminalPanelSnapshotForTests().mode, "closed");
+  assert.equal(getTerminalPanelSnapshotForTests().mode, "docked");
   view.unmount();
 });
 

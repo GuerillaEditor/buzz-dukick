@@ -12,8 +12,13 @@ pub struct PathGuard {
 }
 
 impl PathGuard {
+    /// Dukick: the Files pane browses every mounted drive (read-only).
     pub fn default_roots() -> Result<Self, String> {
-        Self::new(DEFAULT_ALLOWED_ROOTS.iter().map(PathBuf::from).collect())
+        let drives = drive_roots();
+        if drives.is_empty() {
+            return Self::new(DEFAULT_ALLOWED_ROOTS.iter().map(PathBuf::from).collect());
+        }
+        Self::new(drives)
     }
 
     pub fn new(roots: Vec<PathBuf>) -> Result<Self, String> {
@@ -51,6 +56,31 @@ impl PathGuard {
             Err("path is outside the allowed roots".to_string())
         }
     }
+}
+
+/// Every existing drive root (`C:\\`, `D:\\`, …) on Windows, `/` elsewhere.
+pub fn drive_roots() -> Vec<PathBuf> {
+    #[cfg(windows)]
+    {
+        (b'A'..=b'Z')
+            .map(|letter| PathBuf::from(format!("{}:\\", letter as char)))
+            .filter(|root| root.is_dir())
+            .collect()
+    }
+    #[cfg(not(windows))]
+    {
+        vec![PathBuf::from("/")]
+    }
+}
+
+/// Strip the `\\?\` verbatim prefix `canonicalize` adds on Windows so paths
+/// shown in the UI and handed to agents look like normal Explorer paths.
+pub fn display_path(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{rest}");
+    }
+    text.strip_prefix(r"\\?\").unwrap_or(&text).to_string()
 }
 
 #[cfg(test)]

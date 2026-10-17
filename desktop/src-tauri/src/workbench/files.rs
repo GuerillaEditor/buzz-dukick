@@ -4,7 +4,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::Serialize;
 use tauri_plugin_opener::OpenerExt;
 
-use super::path_guard::{PathGuard, DEFAULT_ALLOWED_ROOTS};
+use super::path_guard::{display_path, drive_roots, PathGuard};
 
 const TEXT_PREVIEW_LIMIT: u64 = 1024 * 1024;
 const FILE_READ_LIMIT: u64 = 64 * 1024 * 1024;
@@ -41,6 +41,7 @@ pub enum PreviewKind {
     Text,
     Image,
     Video,
+    Audio,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,9 +94,10 @@ fn classify_preview(path: impl AsRef<Path>) -> Result<PreviewType, String> {
         "yaml" | "yml" => (PreviewKind::Text, "application/yaml"),
         "toml" => (PreviewKind::Text, "application/toml"),
         "csv" => (PreviewKind::Text, "text/csv"),
-        "rs" | "ts" | "tsx" | "js" | "jsx" | "css" | "py" | "ps1" | "sh" => {
-            (PreviewKind::Text, "text/plain")
-        }
+        "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "css" | "scss" | "py" | "ps1"
+        | "psm1" | "sh" | "bat" | "cmd" | "ini" | "cfg" | "conf" | "env" | "go" | "java"
+        | "c" | "h" | "cpp" | "hpp" | "cs" | "vue" | "svelte" | "sql" | "srt" | "vtt"
+        | "lock" | "gitignore" | "nk" | "jsonl" => (PreviewKind::Text, "text/plain"),
         "html" | "htm" => (PreviewKind::Text, "text/html"),
         "xml" => (PreviewKind::Text, "application/xml"),
         "png" => (PreviewKind::Image, "image/png"),
@@ -110,6 +112,14 @@ fn classify_preview(path: impl AsRef<Path>) -> Result<PreviewType, String> {
         "m4v" => (PreviewKind::Video, "video/x-m4v"),
         "avi" => (PreviewKind::Video, "video/x-msvideo"),
         "mkv" => (PreviewKind::Video, "video/x-matroska"),
+        "mp3" => (PreviewKind::Audio, "audio/mpeg"),
+        "wav" => (PreviewKind::Audio, "audio/wav"),
+        "m4a" => (PreviewKind::Audio, "audio/mp4"),
+        "ogg" => (PreviewKind::Audio, "audio/ogg"),
+        "flac" => (PreviewKind::Audio, "audio/flac"),
+        "aac" => (PreviewKind::Audio, "audio/aac"),
+        "ico" => (PreviewKind::Image, "image/x-icon"),
+        "avif" => (PreviewKind::Image, "image/avif"),
         _ => return Err("file type is not allowed for preview".to_string()),
     };
     Ok(PreviewType { kind, mime })
@@ -138,15 +148,14 @@ fn preview_guarded(guard: &PathGuard, path: impl AsRef<Path>) -> Result<FilePrev
     };
     let (bytes, size) = read_limited(&path, limit)?;
     let (text, base64) = if preview_type.kind == PreviewKind::Text {
-        let text =
-            String::from_utf8(bytes).map_err(|_| "text preview is not valid UTF-8".to_string())?;
+        let text = String::from_utf8_lossy(&bytes).into_owned();
         (Some(text), None)
     } else {
         (None, Some(STANDARD.encode(bytes)))
     };
     Ok(FilePreview {
         name: file_name(&path)?,
-        path: path.to_string_lossy().into_owned(),
+        path: display_path(&path),
         mime: preview_type.mime.to_string(),
         kind: preview_type.kind,
         text,
@@ -155,19 +164,37 @@ fn preview_guarded(guard: &PathGuard, path: impl AsRef<Path>) -> Result<FilePrev
     })
 }
 
+/// Quick links first (workspace folders, user folders), then every drive.
 #[tauri::command]
 pub fn workbench_files_roots() -> Vec<FileRoot> {
-    DEFAULT_ALLOWED_ROOTS
-        .iter()
-        .map(|path| FileRoot {
-            name: Path::new(path)
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or(path)
-                .to_string(),
-            path: (*path).to_string(),
-        })
-        .collect()
+    let mut roots = Vec::new();
+    let mut push = |name: &str, path: std::path::PathBuf| {
+        if path.is_dir() {
+            roots.push(FileRoot {
+                name: name.to_string(),
+                path: display_path(&path),
+            });
+        }
+    };
+    push("AIWorkstation", r"C:\AIWorkstation".into());
+    push("GithubRepo", r"C:\GithubRepo".into());
+    if let Some(dir) = dirs::download_dir() {
+        push("Downloads", dir);
+    }
+    if let Some(dir) = dirs::desktop_dir() {
+        push("Desktop", dir);
+    }
+    if let Some(dir) = dirs::document_dir() {
+        push("Documents", dir);
+    }
+    if let Some(dir) = dirs::home_dir() {
+        push("Home", dir);
+    }
+    for drive in drive_roots() {
+        let label = drive.to_string_lossy().trim_end_matches('\\').to_string();
+        push(&label, drive);
+    }
+    roots
 }
 
 #[tauri::command]
@@ -181,13 +208,19 @@ pub fn workbench_files_list(path: String) -> Result<Vec<FileEntry>, String> {
     for item in
         fs::read_dir(directory).map_err(|error| format!("failed to list directory: {error}"))?
     {
-        let item = item.map_err(|error| format!("failed to read directory entry: {error}"))?;
+        // Locked system files (pagefile.sys, junction loops…) are skipped
+        // instead of failing the whole listing.
+        let Ok(item) = item else { continue };
         let canonical = match guard.resolve(item.path()) {
             Ok(path) => path,
             Err(_) => continue,
         };
-        let metadata = fs::metadata(&canonical)
-            .map_err(|error| format!("failed to read entry metadata: {error}"))?;
+        let Ok(metadata) = fs::metadata(&canonical) else {
+            continue;
+        };
+        let Ok(name) = item.file_name().into_string() else {
+            continue;
+        };
         let mime = if metadata.is_file() {
             classify_preview(&canonical)
                 .ok()
@@ -196,8 +229,8 @@ pub fn workbench_files_list(path: String) -> Result<Vec<FileEntry>, String> {
             None
         };
         entries.push(FileEntry {
-            name: file_name(&canonical)?,
-            path: canonical.to_string_lossy().into_owned(),
+            name,
+            path: display_path(&item.path()),
             is_directory: metadata.is_dir(),
             size: metadata.len(),
             mime,
@@ -241,6 +274,16 @@ pub fn workbench_files_reveal(app: tauri::AppHandle, path: String) -> Result<(),
     app.opener()
         .reveal_item_in_dir(path)
         .map_err(|error| format!("failed to reveal file: {error}"))
+}
+
+/// Open a file with its default Windows application (double-click in Files).
+#[tauri::command]
+pub fn workbench_files_open(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let guard = PathGuard::default_roots()?;
+    let path = guard.resolve(path)?;
+    app.opener()
+        .open_path(display_path(&path), None::<&str>)
+        .map_err(|error| format!("failed to open file: {error}"))
 }
 
 #[cfg(test)]

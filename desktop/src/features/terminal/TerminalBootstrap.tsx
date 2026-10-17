@@ -21,6 +21,13 @@ import {
   requestTerminalAgentCommand,
 } from "./terminalPanelStore";
 import { terminalFrameToText } from "./terminalMcpBridge";
+import {
+  togglePaneMaximized,
+  usePaneLayout,
+} from "../workbench/paneLayoutStore";
+
+/** Mirrors `TERMINAL_HOST_EVENT` in the workbench (kept here to avoid a cycle). */
+const TERMINAL_HOST_EVENT = "buzz-dukick:terminal-host";
 
 type TerminalContext = {
   channelId: string;
@@ -66,16 +73,15 @@ export function TerminalBootstrap({
   npub: string | null;
   relayUrl: string | null;
 }) {
-  const context =
-    channelId && npub && relayUrl
-      ? {
-          channelId,
-          channelName: channelName ?? channelId,
-          threadId,
-          npub,
-          relayUrl,
-        }
-      : null;
+  // Dukick: the Terminal pane works everywhere, not only inside a channel.
+  // Outside a channel the shell simply gets no channel context variables.
+  const context: TerminalContext = {
+    channelId: channelId ?? "workbench",
+    channelName: channelName ?? (channelId ? channelId : "Workbench"),
+    threadId,
+    npub: npub ?? "",
+    relayUrl: relayUrl ?? "",
+  };
   const contextRef = React.useRef<TerminalContext | null>(context);
   contextRef.current = context;
   const mountedRef = React.useRef(true);
@@ -90,9 +96,9 @@ export function TerminalBootstrap({
   const [available, setAvailable] = React.useState(() => isTauri());
   const [portalHost, setPortalHost] = React.useState<HTMLElement | null>(null);
   const panel = useTerminalPanel();
-  const [renderedMode, setRenderedMode] = React.useState<
-    "docked" | "maximized"
-  >(panel.mode === "maximized" ? "maximized" : "docked");
+  const [, setRenderedMode] = React.useState<"docked" | "maximized">(
+    panel.mode === "maximized" ? "maximized" : "docked",
+  );
   const [panelVisible, setPanelVisible] = React.useState(
     panel.mode !== "closed",
   );
@@ -108,8 +114,13 @@ export function TerminalBootstrap({
   sessionsRef.current = sessions;
 
   React.useLayoutEffect(() => {
-    setPortalHost(document.getElementById("buzz-terminal-dock-host"));
+    const update = () =>
+      setPortalHost(document.getElementById("buzz-terminal-dock-host"));
+    update();
+    window.addEventListener(TERMINAL_HOST_EVENT, update);
+    return () => window.removeEventListener(TERMINAL_HOST_EVENT, update);
   }, []);
+  const paneLayout = usePaneLayout();
 
   React.useEffect(() => {
     const previousMode = previousPanelModeRef.current;
@@ -151,10 +162,6 @@ export function TerminalBootstrap({
   }, [panel.mode]);
 
   React.useEffect(() => {
-    if (!context && panel.mode !== "closed") setTerminalPanelMode("closed");
-  }, [context, panel.mode]);
-
-  React.useEffect(() => {
     if (
       !isTauri() ||
       typeof (
@@ -185,7 +192,6 @@ export function TerminalBootstrap({
   React.useEffect(() => {
     const toggle = (event: KeyboardEvent) => {
       if (
-        !context ||
         panel.mode !== "closed" ||
         event.code !== "KeyJ" ||
         (!event.metaKey && !event.ctrlKey) ||
@@ -204,7 +210,7 @@ export function TerminalBootstrap({
       window.removeEventListener("keydown", toggle, true);
       window.removeEventListener("keyup", toggle, true);
     };
-  }, [context, panel.mode]);
+  }, [panel.mode]);
 
   const fail = React.useCallback((error: unknown) => {
     report(error);
@@ -402,16 +408,8 @@ export function TerminalBootstrap({
     [available, fail, removeSession],
   );
 
-  const contextChannelId = context?.channelId ?? null;
-  const channelSessions = React.useMemo(
-    () =>
-      contextChannelId
-        ? sessions.filter(
-            (session) => session.context.channelId === contextChannelId,
-          )
-        : [],
-    [contextChannelId, sessions],
-  );
+  // Dukick: one terminal list for the whole app (Claude-desktop style).
+  const channelSessions = sessions;
   const handledSessionRequestRef = React.useRef(panel.newSessionRequestId);
   const sessionRequestPending =
     handledSessionRequestRef.current !== panel.newSessionRequestId;
@@ -435,7 +433,7 @@ export function TerminalBootstrap({
   ]);
 
   React.useEffect(() => {
-    if (panel.mode === "closed" || !available || !context) return;
+    if (panel.mode === "closed" || !available) return;
     if (sessionRequestPending) return;
     if (channelSessions.length === 0) createSession();
     else if (!channelSessions.some((session) => session.key === activeKey))
@@ -444,7 +442,6 @@ export function TerminalBootstrap({
     activeKey,
     available,
     channelSessions,
-    context,
     createSession,
     panel.mode,
     sessionRequestPending,
@@ -518,12 +515,12 @@ export function TerminalBootstrap({
     <TerminalSubstrate
       bracketedPaste={active?.frame?.bracketedPaste ?? false}
       channelName={active?.context.channelName ?? channelName}
-      enabled={available && Boolean(context)}
+      enabled={available}
       fitHost
-      mode={renderedMode}
+      mode={paneLayout.maximized === "terminal" ? "maximized" : "docked"}
       visible={panelVisible}
       onHide={() => setTerminalPanelMode("closed")}
-      onModeChange={setTerminalPanelMode}
+      onModeChange={() => togglePaneMaximized("terminal")}
       onToggle={toggleTerminalPanel}
       focusReportingEnabled={active?.frame?.focusReporting ?? false}
       frame={active?.frame}

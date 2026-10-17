@@ -44,3 +44,25 @@ test("browser presets are local and editable without remote credentials", async 
     "https://flowpix.ai/share/abc",
   );
 });
+
+test("address bar input becomes a URL or a Google search", async () => {
+  const { resolveAddressInput, addressBarText } = await import(
+    "./browserPresets.ts"
+  );
+  assert.equal(resolveAddressInput("flowpix.club"), "https://flowpix.club/");
+  assert.equal(resolveAddressInput("localhost:8188"), "http://localhost:8188/");
+  assert.equal(
+    resolveAddressInput("127.0.0.1:9011/x"),
+    "http://127.0.0.1:9011/x",
+  );
+  assert.equal(
+    resolveAddressInput("https://higgsfield.ai/create"),
+    "https://higgsfield.ai/create",
+  );
+  assert.equal(
+    resolveAddressInput("seedance 2.5 one take"),
+    "https://www.google.com/search?q=seedance%202.5%20one%20take",
+  );
+  assert.equal(resolveAddressInput("  "), "about:blank");
+  assert.equal(addressBarText("about:blank"), "");
+});

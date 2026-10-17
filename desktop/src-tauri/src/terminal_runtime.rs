@@ -422,15 +422,37 @@ pub(crate) fn terminal_attach(
         }
         #[cfg(windows)]
         {
-            buzz_terminal::shell::resolve_shell(std::env::var("ComSpec").ok().as_deref())
+            dukick_windows_shell()
         }
     };
+    #[cfg(unix)]
     let mut command = CommandBuilder::new_default_prog();
+    #[cfg(windows)]
+    let mut command = {
+        let mut command = CommandBuilder::new(&shell);
+        if shell.to_ascii_lowercase().contains("powershell") || shell.to_ascii_lowercase().ends_with("pwsh.exe") {
+            command.arg("-NoLogo");
+        }
+        if let Some(home) = std::env::var_os("USERPROFILE") {
+            command.cwd(home);
+        }
+        command
+    };
     buzz_terminal::env_fence::fence_env(
         &mut command,
         &buzz_terminal::path::user_shell_path(),
         &shell,
     );
+    // Dukick: terminals are full-power — hand the shell the complete user
+    // environment (PATH, CODEX_HOME, tool configs…) on top of the fence.
+    #[cfg(windows)]
+    for (key, value) in std::env::vars_os() {
+        let upper = key.to_string_lossy().to_ascii_uppercase();
+        if matches!(upper.as_str(), "TERM" | "COLORTERM" | "TERM_PROGRAM" | "SHELL") {
+            continue;
+        }
+        command.env(key, value);
+    }
     let context = GuiContext {
         channel_id: request.channel_id,
         channel_name: request.channel_name,
@@ -994,4 +1016,36 @@ mod tests {
             (100, 40, 10_000)
         );
     }
+}
+
+/// Dukick: Windows terminals open PowerShell 7 when installed, then Windows
+/// PowerShell; `BUZZ_TERMINAL_SHELL` overrides both.
+#[cfg(windows)]
+fn dukick_windows_shell() -> String {
+    if let Ok(custom) = std::env::var("BUZZ_TERMINAL_SHELL") {
+        if !custom.trim().is_empty() {
+            return custom;
+        }
+    }
+    let program_files =
+        std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
+    let pwsh = std::path::Path::new(&program_files).join("PowerShell\\7\\pwsh.exe");
+    if pwsh.is_file() {
+        return pwsh.to_string_lossy().into_owned();
+    }
+    if let Some(path) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path) {
+            let candidate = dir.join("pwsh.exe");
+            if candidate.is_file() {
+                return candidate.to_string_lossy().into_owned();
+            }
+        }
+    }
+    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
+    let powershell = std::path::Path::new(&system_root)
+        .join("System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+    if powershell.is_file() {
+        return powershell.to_string_lossy().into_owned();
+    }
+    buzz_terminal::shell::resolve_shell(std::env::var("ComSpec").ok().as_deref())
 }

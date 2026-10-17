@@ -109,3 +109,38 @@ test("up navigation stops at an allowed root", async () => {
   );
   assert.equal(parentWithinRoots("C:\\AIWorkstation\\projects", roots), null);
 });
+
+test("tree filter keeps matches and their ancestor folders", async () => {
+  const { visiblePathsForFilter, codeLanguageForPath, formatFileSize } =
+    await import("./filesStore.ts");
+  const dir = (name, path) => ({
+    name,
+    path,
+    isDir: true,
+    size: 0,
+    mime: null,
+  });
+  const file = (name, path) => ({
+    name,
+    path,
+    isDir: false,
+    size: 1,
+    mime: null,
+  });
+  const children = new Map([
+    [
+      "C:\\p",
+      [dir("shots", "C:\\p\\shots"), file("notes.md", "C:\\p\\notes.md")],
+    ],
+    ["C:\\p\\shots", [file("hero.mp4", "C:\\p\\shots\\hero.mp4")]],
+  ]);
+  assert.equal(visiblePathsForFilter(children, "C:\\p", " "), null);
+  const visible = visiblePathsForFilter(children, "C:\\p", "HERO");
+  assert.deepEqual([...visible].sort(), [
+    "C:\\p\\shots",
+    "C:\\p\\shots\\hero.mp4",
+  ]);
+  assert.equal(codeLanguageForPath("C:\\x\\run.ps1"), "powershell");
+  assert.equal(codeLanguageForPath("C:\\x\\notes.md"), null);
+  assert.equal(formatFileSize(2048), "2.0 KB");
+});

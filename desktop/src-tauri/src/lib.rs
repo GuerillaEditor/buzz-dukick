@@ -101,7 +101,8 @@ use tray_menu::show_main_window;
 use workbench::{
     start_mcp, workbench_browser_activate, workbench_browser_close, workbench_browser_history,
     workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
-    workbench_files_list, workbench_files_preview, workbench_files_read, workbench_files_reveal,
+    workbench_browser_set_viewport,
+    workbench_files_list, workbench_files_open, workbench_files_preview, workbench_files_read, workbench_files_reveal,
     workbench_files_roots, BrowserRegistry, McpBridge,
 };
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -552,8 +553,10 @@ pub fn run() {
             workbench_browser_reload,
             workbench_browser_close,
             workbench_browser_history,
+            workbench_browser_set_viewport,
             workbench_files_roots,
             workbench_files_list,
+            workbench_files_open,
             workbench_files_preview,
             workbench_files_read,
             workbench_files_reveal,

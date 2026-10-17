@@ -106,7 +106,7 @@ import { SidebarProvider } from "@/shared/ui/sidebar";
 import { RelayConnectionOverlay } from "@/app/RelayConnectionOverlay";
 import { useSidebarRelayConnectionCard } from "@/features/sidebar/ui/useSidebarRelayConnectionCard";
 import { AppShellTrayMenu } from "@/app/useAppShellTrayMenu";
-import { WorkbenchDock } from "@/features/workbench/WorkbenchDock";
+import { WorkbenchPanes } from "@/features/workbench/WorkbenchPanes";
 import "@/features/workbench/workbench.css";
 import { AppProfilePanelProvider } from "@/app/AppProfilePanelProvider";
 import { AppWorkflowEditorOverlayProvider } from "@/app/AppWorkflowEditorOverlayProvider";
@@ -962,7 +962,7 @@ export function AppShell() {
                           isHuddleDrawerOpen={isHuddleDrawerOpen}
                         />
                       ) : null}
-                      {!isHuddleRoom ? <WorkbenchDock /> : null}
+                      {!isHuddleRoom ? <WorkbenchPanes /> : null}
                     </div>
                   )}
                   <RequestedAgentCreateDialogs />

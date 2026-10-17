@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, TcpListener};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{LogicalPosition, LogicalSize, Manager, State, WebviewBuilder, WebviewUrl};
+use tauri::webview::{NewWindowResponse, PageLoadEvent};
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewBuilder, WebviewUrl};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
 
@@ -18,9 +19,23 @@ pub struct BrowserWebviewInfo {
     pub url: String,
 }
 
+/// Rectangle (logical px, relative to the main window) owned by the
+/// Browser pane placeholder in the React layout. Every workbench webview is
+/// laid out here; only the active one is shown.
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct BrowserViewport {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub visible: bool,
+}
+
 #[derive(Default)]
 pub struct BrowserRegistry {
     ports: Mutex<HashMap<String, u16>>,
+    viewport: Mutex<BrowserViewport>,
+    active: Mutex<Option<String>>,
 }
 
 impl BrowserRegistry {
@@ -49,7 +64,74 @@ impl BrowserRegistry {
         if let Ok(mut ports) = self.ports.lock() {
             ports.remove(label);
         }
+        if let Ok(mut active) = self.active.lock() {
+            if active.as_deref() == Some(label) {
+                *active = None;
+            }
+        }
     }
+
+    fn viewport(&self) -> BrowserViewport {
+        self.viewport.lock().map(|v| *v).unwrap_or_default()
+    }
+
+    fn set_viewport(&self, viewport: BrowserViewport) {
+        if let Ok(mut current) = self.viewport.lock() {
+            *current = viewport;
+        }
+    }
+
+    fn active(&self) -> Option<String> {
+        self.active.lock().ok().and_then(|a| a.clone())
+    }
+
+    fn set_active(&self, label: Option<String>) {
+        if let Ok(mut active) = self.active.lock() {
+            *active = label;
+        }
+    }
+}
+
+/// Position the active workbench webview over the Browser pane placeholder
+/// and hide every other one (or all of them when the pane is hidden).
+fn apply_layout(app: &tauri::AppHandle, registry: &BrowserRegistry) -> Result<(), String> {
+    let viewport = registry.viewport();
+    let active = registry.active();
+    let showable = viewport.visible && viewport.width >= 2.0 && viewport.height >= 2.0;
+    for (label, webview) in app.webviews() {
+        if !is_workbench_browser_label(&label) {
+            continue;
+        }
+        if showable && active.as_deref() == Some(label.as_str()) {
+            webview
+                .set_position(LogicalPosition::new(viewport.x.max(0.0), viewport.y.max(0.0)))
+                .map_err(|error| error.to_string())?;
+            webview
+                .set_size(LogicalSize::new(viewport.width, viewport.height))
+                .map_err(|error| error.to_string())?;
+            webview.show().map_err(|error| error.to_string())?;
+        } else {
+            webview.hide().map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn workbench_browser_set_viewport(
+    app: tauri::AppHandle,
+    viewport: BrowserViewport,
+    registry: State<'_, BrowserRegistry>,
+) -> Result<(), String> {
+    if !(viewport.x.is_finite()
+        && viewport.y.is_finite()
+        && viewport.width.is_finite()
+        && viewport.height.is_finite())
+    {
+        return Err("browser viewport must be finite".to_string());
+    }
+    registry.set_viewport(viewport);
+    apply_layout(&app, &registry)
 }
 
 pub fn validate_cdp_bind_host(host: &str) -> Result<(), String> {
@@ -77,9 +159,10 @@ pub async fn workbench_browser_open(
     app: tauri::AppHandle,
     profile: String,
     url: String,
+    tab_id: Option<String>,
     registry: State<'_, BrowserRegistry>,
 ) -> Result<BrowserWebviewInfo, String> {
-    open_browser(&app, &registry, profile, url).await
+    open_browser_for_tab(&app, &registry, profile, url, tab_id).await
 }
 
 pub async fn open_browser(
@@ -88,6 +171,16 @@ pub async fn open_browser(
     profile: String,
     url: String,
 ) -> Result<BrowserWebviewInfo, String> {
+    open_browser_for_tab(app, registry, profile, url, None).await
+}
+
+async fn open_browser_for_tab(
+    app: &tauri::AppHandle,
+    registry: &BrowserRegistry,
+    profile: String,
+    url: String,
+    tab_id: Option<String>,
+) -> Result<BrowserWebviewInfo, String> {
     let parsed = validate_url(&url)?;
     validate_cdp_bind_host("127.0.0.1")?;
     let root = default_profile_root()?;
@@ -95,25 +188,57 @@ pub async fn open_browser(
     std::fs::create_dir_all(&data_directory).map_err(|error| error.to_string())?;
     let label = format!("workbench-browser-{}", Uuid::new_v4());
     let window = app.get_window("main").ok_or("main window unavailable")?;
-    let size = window.inner_size().map_err(|error| error.to_string())?;
-    let width = 380.0_f64;
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let logical = size.to_logical::<f64>(scale);
-    // Leave the dock's browser tab strip and navigation controls visible above
-    // the native child webview. The workbench layout owns this inset.
-    let toolbar_inset = 150.0_f64;
-    let position = LogicalPosition::new((logical.width - width).max(0.0), toolbar_inset);
-    let child_size = LogicalSize::new(width, (logical.height - toolbar_inset).max(1.0));
+    let viewport = registry.viewport();
+    let (position, child_size) = if viewport.visible && viewport.width >= 2.0 {
+        (
+            LogicalPosition::new(viewport.x.max(0.0), viewport.y.max(0.0)),
+            LogicalSize::new(viewport.width, viewport.height.max(1.0)),
+        )
+    } else {
+        (LogicalPosition::new(0.0, 0.0), LogicalSize::new(1.0, 1.0))
+    };
     let port = registry.reserve(&label)?;
+    let title_app = app.clone();
+    let load_app = app.clone();
+    let popup_app = app.clone();
+    let popup_profile = profile.clone();
     let browser = WebviewBuilder::new(label.clone(), WebviewUrl::External(parsed))
         .data_directory(data_directory)
         .additional_browser_args(&format!(
             "--remote-debugging-address=127.0.0.1 --remote-debugging-port={port}"
-        ));
+        ))
+        .on_document_title_changed(move |webview, title| {
+            let _ = title_app.emit(
+                "workbench-browser-state",
+                json!({"label": webview.label(), "title": title}),
+            );
+        })
+        .on_page_load(move |webview, payload| {
+            let loading = matches!(payload.event(), PageLoadEvent::Started);
+            let _ = load_app.emit(
+                "workbench-browser-state",
+                json!({"label": webview.label(), "url": payload.url().to_string(), "loading": loading}),
+            );
+        })
+        .on_new_window(move |url, _features| {
+            // target=_blank / window.open land in a new workbench tab instead
+            // of a detached native window.
+            let _ = popup_app.emit(
+                "workbench-browser-new-tab",
+                json!({"url": url.to_string(), "profile": popup_profile}),
+            );
+            NewWindowResponse::Deny
+        });
     if let Err(error) = window.add_child(browser, position, child_size) {
         registry.remove(&label);
         return Err(error.to_string());
     }
+    registry.set_active(Some(label.clone()));
+    let _ = apply_layout(app, registry);
+    let _ = app.emit(
+        "workbench-browser-opened",
+        json!({"label": label, "profile": profile, "url": url, "tabId": tab_id}),
+    );
     Ok(BrowserWebviewInfo {
         label,
         profile,
@@ -125,24 +250,15 @@ pub async fn open_browser(
 pub async fn workbench_browser_activate(
     app: tauri::AppHandle,
     label: Option<String>,
+    registry: State<'_, BrowserRegistry>,
 ) -> Result<(), String> {
     if let Some(target) = label.as_deref() {
         if !is_workbench_browser_label(target) {
             return Err("invalid workbench browser label".to_string());
         }
     }
-
-    for (candidate, webview) in app.webviews() {
-        if !is_workbench_browser_label(&candidate) {
-            continue;
-        }
-        if label.as_deref() == Some(candidate.as_str()) {
-            webview.show().map_err(|error| error.to_string())?;
-        } else {
-            webview.hide().map_err(|error| error.to_string())?;
-        }
-    }
-    Ok(())
+    registry.set_active(label);
+    apply_layout(&app, &registry)
 }
 
 #[tauri::command]

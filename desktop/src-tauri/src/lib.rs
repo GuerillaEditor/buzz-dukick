@@ -102,7 +102,7 @@ use workbench::{
     start_mcp, workbench_browser_activate, workbench_browser_close, workbench_browser_history,
     workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
     workbench_files_list, workbench_files_preview, workbench_files_read, workbench_files_reveal,
-    workbench_files_roots,
+    workbench_files_roots, BrowserRegistry, McpBridge,
 };
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -239,6 +239,8 @@ pub fn run() {
         .manage(BuilderlabLogin::default())
         .manage(commands::pairing::PairingHandle::new())
         .manage(terminal_runtime::TerminalSessions::default())
+        .manage(BrowserRegistry::default())
+        .manage(McpBridge::default())
         .manage(archive::sync::ArchiveSyncState::default())
         .manage(native_relay_client::NativeRelayClient::default())
         .manage(observed_unread::ObservedUnreadStore::default())

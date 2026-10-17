@@ -1,9 +1,6 @@
 use axum::{
-    extract::State,
     http::{HeaderMap, Request, StatusCode},
-    middleware,
-    routing::post,
-    Json, Router,
+    middleware, Router,
 };
 use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
@@ -16,7 +13,7 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde_json::{json, Value};
 use std::{net::SocketAddr, sync::Arc};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 
 use super::mcp_auth::{configured_port, is_loopback, load_or_create_token, token_matches};
 use super::mcp_tools::{self, ToolCall};
@@ -48,42 +45,19 @@ impl McpHandler {
         let _ = self
             .app
             .emit("workbench-agent-activity", json!({"tool":name}));
-        let arguments = Value::Object(params.values);
-        if matches!(
-            name,
-            "browser_navigate" | "browser_tabs" | "files_preview" | "files_reveal"
-        ) {
-            let result = mcp_tools::call(
-                &self.app,
-                ToolCall {
-                    name: name.to_string(),
-                    arguments,
-                },
-            )
-            .await;
-            let payload = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
-            return Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-                payload,
-            )]));
-        }
-        if name.starts_with("browser_") {
-            let _ = self.app.emit(
-                "workbench-mcp-browser-command",
-                json!({"action": name, "arguments": arguments}),
-            );
-        } else if name == "terminal_run" {
-            let command = arguments
-                .get("command")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let _ = self.app.emit(
-                "workbench-mcp-terminal-run",
-                json!({"requestId": uuid::Uuid::new_v4().to_string(), "command": command}),
-            );
-        }
-        Ok(CallToolResult::success(vec![rmcp::model::Content::text(
-            format!("{name} queued to visible workbench"),
-        )]))
+        let arguments = Value::Object(params.values.into_iter().collect());
+        let result = mcp_tools::call(
+            &self.app,
+            ToolCall {
+                name: name.to_string(),
+                arguments,
+            },
+        )
+        .await;
+        let payload = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
+        Ok(CallToolResult::success(vec![
+            rmcp::model::ContentBlock::text(payload),
+        ]))
     }
     #[tool(
         name = "browser_open",
@@ -189,76 +163,20 @@ impl ServerHandler for McpHandler {
     }
 }
 
-#[derive(Clone)]
-struct ServerState {
-    app: AppHandle,
-    token: Arc<String>,
-}
-
-async fn rpc(
-    State(state): State<ServerState>,
-    headers: HeaderMap,
-    Json(request): Json<Value>,
-) -> (StatusCode, Json<Value>) {
-    let supplied = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("Bearer "))
-        .or_else(|| {
-            headers
-                .get("x-buzz-dukick-token")
-                .and_then(|v| v.to_str().ok())
-        });
-    if !token_matches(&state.token, supplied) {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(json!({"jsonrpc":"2.0","error":{"code":-32001,"message":"unauthorized"}})),
-        );
-    }
-    let id = request.get("id").cloned().unwrap_or(Value::Null);
-    let method = request
-        .get("method")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let result = match method {
-        "initialize" => {
-            json!({"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"buzz-dukick-workbench","version":env!("CARGO_PKG_VERSION")}})
-        }
-        "notifications/initialized" => json!(null),
-        "tools/list" => {
-            json!({"tools": mcp_tools::TOOL_NAMES.iter().map(|name| json!({"name":name,"description":"Buzz Dukick Workbench tool","inputSchema":{"type":"object"}})).collect::<Vec<_>>() })
-        }
-        "tools/call" => {
-            let params = request.get("params").cloned().unwrap_or_default();
-            let call: ToolCall = serde_json::from_value(json!({"name":params.get("name").cloned().unwrap_or_default(),"arguments":params.get("arguments").cloned().unwrap_or(json!({}))})).unwrap_or(ToolCall{name:String::new(),arguments:json!({})});
-            let value = mcp_tools::call(&state.app, call).await;
-            serde_json::to_value(value).unwrap_or_else(|_| json!({"is_error":true}))
-        }
-        _ => {
-            return (
-                StatusCode::OK,
-                Json(
-                    json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":"method not found"}}),
-                ),
-            )
-        }
-    };
-    (
-        StatusCode::OK,
-        Json(json!({"jsonrpc":"2.0","id":id,"result":result})),
-    )
-}
-
 pub fn start(app: AppHandle) {
     let port = configured_port();
     let token = match load_or_create_token() {
         Ok(token) => token,
         Err(_) => return,
     };
-    let state = ServerState {
-        app,
-        token: Arc::new(token),
-    };
+    let token = Arc::new(token);
+    let app_for_service = app.clone();
+    let bridge = app.state::<super::mcp_tools::McpBridge>().inner().clone();
+    app.listen("workbench-mcp-result", move |event| {
+        if let Ok(payload) = serde_json::from_str::<Value>(event.payload()) {
+            bridge.resolve(payload);
+        }
+    });
     tauri::async_runtime::spawn(async move {
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         if !is_loopback(addr.ip()) {
@@ -268,13 +186,12 @@ pub fn start(app: AppHandle) {
             Ok(listener) => listener,
             Err(_) => return,
         };
-        let app_for_service = state.app.clone();
         let service = StreamableHttpService::new(
             move || Ok(McpHandler::new(app_for_service.clone())),
             Arc::new(LocalSessionManager::default()),
             StreamableHttpServerConfig::default(),
         );
-        let token_for_middleware = state.token.clone();
+        let token_for_middleware = token.clone();
         let auth = middleware::from_fn(
             move |headers: HeaderMap,
                   request: Request<axum::body::Body>,

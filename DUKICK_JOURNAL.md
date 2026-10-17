@@ -82,3 +82,15 @@ BLOCKED: S5 cargo check/smoke verification cannot complete until the MSVC/CMake 
 ### Final verification
 
 BLOCKED: S5 is not eligible for READY FOR AUDIT until the external Rust build blocker is cleared and native smoke evidence is captured.
+
+## S5 continuation — MCP result bridge (2026-10-17)
+
+- Ruling: use the existing Tauri native webview/PTY surfaces as the trusted UI bridge, with CDP for browser results that require a direct protocol response; no second terminal runtime is created.
+- RED: added browser registry and terminal frame-to-text tests before implementation; the browser registry test initially failed because the registry did not exist.
+- Browser: added per-tab loopback CDP port registry, CDP target discovery, bounded text/screenshot results, selector/coordinate click validation, bounded typing, and browser navigate auto-open behavior.
+- MCP: all rmcp tool handlers now dispatch through `mcp_tools::call`; removed the unused legacy JSON-RPC `rpc()` path. Added authenticated result handshakes for terminal run/read/stop.
+- Terminal: added `workbench-mcp-result`, `workbench-mcp-terminal-read`, and `workbench-mcp-terminal-stop` event bridge; existing PTY and TerminalConnection remain the only runtime.
+- GREEN: cargo check PASS under vcvars64 with `CC=cl`, `CXX=cl`, `CARGO_BUILD_JOBS=6`; workbench Rust tests 19/19 PASS; frontend typecheck, Biome, and focused terminal/workbench tests 21/21 PASS.
+- No token, key, cookie, profile, or production Buzz path was read or written. Native app smoke/evidence and NSIS build remain pending.
+
+S5-MCP IMPLEMENTED; verification remains BLOCKED until native smoke evidence is captured.

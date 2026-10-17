@@ -1,5 +1,12 @@
-use serde::Serialize;
-use tauri::{LogicalPosition, LogicalSize, Manager, WebviewBuilder, WebviewUrl};
+use futures_util::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::net::{IpAddr, SocketAddr, TcpListener};
+use std::sync::Mutex;
+use std::time::Duration;
+use tauri::{LogicalPosition, LogicalSize, Manager, State, WebviewBuilder, WebviewUrl};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
 
 use super::profiles::{default_profile_root, profile_directory};
@@ -9,6 +16,40 @@ pub struct BrowserWebviewInfo {
     pub label: String,
     pub profile: String,
     pub url: String,
+}
+
+#[derive(Default)]
+pub struct BrowserRegistry {
+    ports: Mutex<HashMap<String, u16>>,
+}
+
+impl BrowserRegistry {
+    pub fn reserve(&self, label: &str) -> Result<u16, String> {
+        let listener = TcpListener::bind(SocketAddr::new(
+            IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+            0,
+        ))
+        .map_err(|error| format!("reserve CDP port: {error}"))?;
+        let port = listener
+            .local_addr()
+            .map_err(|error| format!("read reserved CDP port: {error}"))?
+            .port();
+        self.ports
+            .lock()
+            .map_err(|error| error.to_string())?
+            .insert(label.to_string(), port);
+        Ok(port)
+    }
+
+    pub fn port_for(&self, label: &str) -> Option<u16> {
+        self.ports.lock().ok()?.get(label).copied()
+    }
+
+    pub fn remove(&self, label: &str) {
+        if let Ok(mut ports) = self.ports.lock() {
+            ports.remove(label);
+        }
+    }
 }
 
 pub fn validate_cdp_bind_host(host: &str) -> Result<(), String> {
@@ -36,6 +77,16 @@ pub async fn workbench_browser_open(
     app: tauri::AppHandle,
     profile: String,
     url: String,
+    registry: State<'_, BrowserRegistry>,
+) -> Result<BrowserWebviewInfo, String> {
+    open_browser(&app, &registry, profile, url).await
+}
+
+pub async fn open_browser(
+    app: &tauri::AppHandle,
+    registry: &BrowserRegistry,
+    profile: String,
+    url: String,
 ) -> Result<BrowserWebviewInfo, String> {
     let parsed = validate_url(&url)?;
     validate_cdp_bind_host("127.0.0.1")?;
@@ -53,15 +104,16 @@ pub async fn workbench_browser_open(
     let toolbar_inset = 150.0_f64;
     let position = LogicalPosition::new((logical.width - width).max(0.0), toolbar_inset);
     let child_size = LogicalSize::new(width, (logical.height - toolbar_inset).max(1.0));
-    let port = 9300 + (Uuid::new_v4().as_u128() % 600) as u16;
+    let port = registry.reserve(&label)?;
     let browser = WebviewBuilder::new(label.clone(), WebviewUrl::External(parsed))
         .data_directory(data_directory)
         .additional_browser_args(&format!(
             "--remote-debugging-address=127.0.0.1 --remote-debugging-port={port}"
         ));
-    window
-        .add_child(browser, position, child_size)
-        .map_err(|error| error.to_string())?;
+    if let Err(error) = window.add_child(browser, position, child_size) {
+        registry.remove(&label);
+        return Err(error.to_string());
+    }
     Ok(BrowserWebviewInfo {
         label,
         profile,
@@ -140,12 +192,245 @@ pub async fn workbench_browser_close(app: tauri::AppHandle, label: String) -> Re
         return Err("invalid workbench browser label".to_string());
     }
     let webview = app.get_webview(&label).ok_or("browser tab not found")?;
-    webview.close().map_err(|error| error.to_string())
+    let result = webview.close().map_err(|error| error.to_string());
+    if result.is_ok() {
+        if let Some(registry) = app.try_state::<BrowserRegistry>() {
+            registry.remove(&label);
+        }
+    }
+    result
+}
+
+#[derive(Debug, Deserialize)]
+struct CdpTarget {
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(rename = "webSocketDebuggerUrl")]
+    websocket_url: Option<String>,
+}
+
+async fn cdp_target(port: u16) -> Result<CdpTarget, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .map_err(|error| error.to_string())?;
+    for _ in 0..20 {
+        if let Ok(response) = client
+            .get(format!("http://127.0.0.1:{port}/json/list"))
+            .send()
+            .await
+        {
+            if let Ok(targets) = response.json::<Vec<CdpTarget>>().await {
+                if let Some(target) = targets
+                    .into_iter()
+                    .find(|target| target.kind == "page" && target.websocket_url.is_some())
+                {
+                    return Ok(target);
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err("browser CDP target unavailable".to_string())
+}
+
+pub async fn cdp_call(
+    registry: &BrowserRegistry,
+    label: &str,
+    method: &str,
+    params: Value,
+) -> Result<Value, String> {
+    if !is_workbench_browser_label(label) {
+        return Err("invalid workbench browser label".to_string());
+    }
+    let port = registry
+        .port_for(label)
+        .ok_or_else(|| "browser CDP session not found".to_string())?;
+    let target = cdp_target(port).await?;
+    let websocket_url = target
+        .websocket_url
+        .ok_or_else(|| "browser CDP websocket unavailable".to_string())?;
+    let (mut socket, _) =
+        tokio::time::timeout(Duration::from_secs(3), connect_async(websocket_url))
+            .await
+            .map_err(|_| "browser CDP connection timed out".to_string())?
+            .map_err(|error| error.to_string())?;
+    let request_id = 1_u64;
+    socket
+        .send(Message::Text(
+            json!({"id": request_id, "method": method, "params": params})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .map_err(|error| error.to_string())?;
+    while let Some(message) = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .map_err(|_| "browser CDP command timed out".to_string())?
+        .transpose()
+        .map_err(|error| error.to_string())?
+    {
+        let Message::Text(text) = message else {
+            continue;
+        };
+        let value: Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+        if value.get("id").and_then(Value::as_u64) != Some(request_id) {
+            continue;
+        }
+        if let Some(error) = value.get("error") {
+            return Err(error.to_string());
+        }
+        return Ok(value.get("result").cloned().unwrap_or(Value::Null));
+    }
+    Err("browser CDP closed before returning a result".to_string())
+}
+
+pub async fn cdp_read_text(registry: &BrowserRegistry, label: &str) -> Result<String, String> {
+    let result = cdp_call(
+        registry,
+        label,
+        "Runtime.evaluate",
+        json!({"expression":"document.body ? document.body.innerText : ''","returnByValue":true}),
+    )
+    .await?;
+    let text = result
+        .pointer("/result/value")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Ok(text.chars().take(256 * 1024).collect())
+}
+
+pub async fn cdp_screenshot(registry: &BrowserRegistry, label: &str) -> Result<String, String> {
+    let result = cdp_call(
+        registry,
+        label,
+        "Page.captureScreenshot",
+        json!({"format":"png"}),
+    )
+    .await?;
+    let data = result
+        .get("data")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "browser screenshot returned no PNG".to_string())?;
+    if data.len() > 8 * 1024 * 1024 {
+        return Err("browser screenshot exceeds 8 MiB".to_string());
+    }
+    Ok(data.to_string())
+}
+
+pub async fn cdp_click(
+    registry: &BrowserRegistry,
+    label: &str,
+    selector: Option<&str>,
+    x: Option<f64>,
+    y: Option<f64>,
+) -> Result<(), String> {
+    match (selector, x, y) {
+        (Some(selector), None, None) => {
+            let selector = serde_json::to_string(selector).map_err(|error| error.to_string())?;
+            let result = cdp_call(
+                registry,
+                label,
+                "Runtime.evaluate",
+                json!({"expression":format!("(()=>{{const e=document.querySelector({selector});if(!e)return {{ok:false,error:'not found'}};e.click();return {{ok:true}};}})()"),"returnByValue":true}),
+            )
+            .await?;
+            if result.pointer("/result/value/ok").and_then(Value::as_bool) != Some(true) {
+                return Err(result
+                    .pointer("/result/value/error")
+                    .and_then(Value::as_str)
+                    .unwrap_or("browser selector click failed")
+                    .to_string());
+            }
+            Ok(())
+        }
+        (None, Some(x), Some(y)) if x.is_finite() && y.is_finite() && x >= 0.0 && y >= 0.0 => {
+            cdp_call(
+                registry,
+                label,
+                "Input.dispatchMouseEvent",
+                json!({"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}),
+            )
+            .await?;
+            cdp_call(
+                registry,
+                label,
+                "Input.dispatchMouseEvent",
+                json!({"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}),
+            )
+            .await?;
+            Ok(())
+        }
+        _ => Err("browser_click requires selector or non-negative x/y".to_string()),
+    }
+}
+
+pub async fn cdp_type(
+    registry: &BrowserRegistry,
+    label: &str,
+    selector: &str,
+    text: &str,
+) -> Result<(), String> {
+    if text.len() > 64 * 1024 {
+        return Err("browser_type text exceeds 64 KiB".to_string());
+    }
+    let selector_json = serde_json::to_string(selector).map_err(|error| error.to_string())?;
+    let result = cdp_call(
+        registry,
+        label,
+        "Runtime.evaluate",
+        json!({"expression":format!("(()=>{{const e=document.querySelector({selector_json});if(!e)return {{ok:false,error:'not found'}};e.focus();return {{ok:true}};}})()"),"returnByValue":true}),
+    )
+    .await?;
+    if result.pointer("/result/value/ok").and_then(Value::as_bool) != Some(true) {
+        return Err("browser_type selector not found".to_string());
+    }
+    cdp_call(registry, label, "Input.insertText", json!({"text":text})).await?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_registry_assigns_loopback_ports_per_tab() {
+        let registry = BrowserRegistry::default();
+        let first = registry.reserve("workbench-browser-a").unwrap();
+        let second = registry.reserve("workbench-browser-b").unwrap();
+        assert_ne!(first, second);
+        assert!(registry.port_for("workbench-browser-a").is_some());
+        assert!(registry.port_for("workbench-browser-b").is_some());
+        registry.remove("workbench-browser-a");
+        assert!(registry.port_for("workbench-browser-a").is_none());
+    }
+
+    #[tokio::test]
+    async fn browser_click_rejects_unbounded_input_before_connecting() {
+        let registry = BrowserRegistry::default();
+        let result = cdp_click(
+            &registry,
+            "workbench-browser-a",
+            None,
+            Some(-1.0),
+            Some(2.0),
+        )
+        .await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn browser_type_rejects_oversized_text_before_connecting() {
+        let registry = BrowserRegistry::default();
+        let result = cdp_type(
+            &registry,
+            "workbench-browser-a",
+            "input",
+            &"x".repeat(64 * 1024 + 1),
+        )
+        .await;
+        assert!(result.is_err());
+    }
 
     #[test]
     fn rejects_non_loopback_cdp_hosts() {

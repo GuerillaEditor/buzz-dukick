@@ -16,7 +16,7 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde_json::{json, Value};
 use std::{net::SocketAddr, sync::Arc};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use super::mcp_auth::{configured_port, is_loopback, load_or_create_token, token_matches};
 use super::mcp_tools::{self, ToolCall};

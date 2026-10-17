@@ -17,3 +17,38 @@
 - No push or PR.
 
 BLOCKED: B2/B3/B4 chưa triển khai trong lượt này; chưa đủ điều kiện `READY FOR AUDIT`.
+
+## Buzz Dukick v2 — S1 → S5 (2026-10-17)
+
+- Ruling: giữ nguyên baseline B1 `5c1504857`; chỉ sửa worktree Dukick trên nhánh `dukick/main`.
+- Ruling: thực hiện S1 → S5 tuần tự; không chạy hai build lớn đồng thời để tránh Kernel-Power 41.
+- Ruling: không đọc/in/chép credential, key, token, nsec, cookie hoặc browser profile; không sửa Buzz production.
+- Baseline trước S1: `58f55615d`.
+
+### S1
+
+- Added `desktop/src/features/workbench/WorkbenchDock.tsx`, `workbenchStore.ts`, `workbench.css`, and `WorkbenchDock.test.mjs`.
+- Integrated the dock into `desktop/src/app/AppShell.tsx`; the existing channel/thread surface and Ctrl+J terminal shortcut remain intact.
+- TDD: WorkbenchDock tests were authored first and passed with direct Node test runner: 3/3.
+- Note: the repo's `pnpm` shim is currently blocked by a package-manager mismatch (configured 11.4.0, installed 12.3.4); direct Node test execution was used for the focused test.
+- S1 DONE `e6b50b856`
+
+### S2
+
+PENDING
+
+### S3
+
+PENDING
+
+### S4
+
+PENDING
+
+### S5
+
+PENDING
+
+### Final verification
+
+PENDING

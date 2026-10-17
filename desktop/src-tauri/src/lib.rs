@@ -91,7 +91,10 @@ use mesh_llm_stubs::*;
 #[cfg(all(feature = "mesh-llm", target_os = "macos"))]
 use shutdown::{hard_exit_after_mesh_shutdown, relaunch_after_mesh_shutdown};
 use shutdown::{is_restart_request, shut_down_app};
-use workbench::{workbench_browser_close, workbench_browser_history, workbench_browser_navigate, workbench_browser_open, workbench_browser_reload};
+use workbench::{
+    workbench_browser_activate, workbench_browser_close, workbench_browser_history,
+    workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
+};
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
 #[cfg(target_os = "macos")]
 use tauri::Listener;
@@ -539,6 +542,7 @@ pub fn run() {
             terminal_runtime::terminal_viewport_ready,
             terminal_runtime::terminal_focus,
             workbench_browser_open,
+            workbench_browser_activate,
             workbench_browser_navigate,
             workbench_browser_reload,
             workbench_browser_close,

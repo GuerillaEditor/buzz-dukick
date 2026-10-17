@@ -11,7 +11,13 @@ export const PROFILE_NAMES = [
 ] as const;
 export type BrowserProfile = (typeof PROFILE_NAMES)[number];
 
-export type BrowserTab = { id: string; profile: BrowserProfile; url: string; title?: string; nativeLabel?: string };
+export type BrowserTab = {
+  id: string;
+  profile: BrowserProfile;
+  url: string;
+  title?: string;
+  nativeLabel?: string;
+};
 export type BrowserState = { activeTabId: string; tabs: BrowserTab[] };
 
 export const DEFAULT_BROWSER_STATE: BrowserState = {
@@ -20,45 +26,116 @@ export const DEFAULT_BROWSER_STATE: BrowserState = {
 };
 
 function safeProfile(value: unknown): BrowserProfile {
-  return PROFILE_NAMES.includes(value as BrowserProfile) ? (value as BrowserProfile) : "default";
+  return PROFILE_NAMES.includes(value as BrowserProfile)
+    ? (value as BrowserProfile)
+    : "default";
 }
 
 function safeTab(value: unknown, fallbackId: string): BrowserTab {
-  const item = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-  const id = typeof item.id === "string" && item.id.length > 0 ? item.id : fallbackId;
+  const item =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const id =
+    typeof item.id === "string" && item.id.length > 0 ? item.id : fallbackId;
   return {
     id,
     profile: safeProfile(item.profile),
-    url: typeof item.url === "string" ? normalizeBrowserUrl(item.url) : "about:blank",
-    ...(typeof item.title === "string" ? { title: item.title.slice(0, 200) } : {}),
-    ...(typeof item.nativeLabel === "string" ? { nativeLabel: item.nativeLabel } : {}),
+    url:
+      typeof item.url === "string"
+        ? normalizeBrowserUrl(item.url)
+        : "about:blank",
+    ...(typeof item.title === "string"
+      ? { title: item.title.slice(0, 200) }
+      : {}),
   };
 }
 
-export function loadBrowserState(storage?: Pick<Storage, "getItem"> | null): BrowserState {
+export function loadBrowserState(
+  storage?: Pick<Storage, "getItem"> | null,
+): BrowserState {
   if (!storage) return DEFAULT_BROWSER_STATE;
   try {
-    const parsed = JSON.parse(storage.getItem(BROWSER_STORAGE_KEY) ?? "null") as Record<string, unknown> | null;
+    const parsed = JSON.parse(
+      storage.getItem(BROWSER_STORAGE_KEY) ?? "null",
+    ) as Record<string, unknown> | null;
     const rawTabs = Array.isArray(parsed?.tabs) ? parsed.tabs : [];
     const tabs = rawTabs.map((tab, index) => safeTab(tab, `tab-${index + 1}`));
     if (tabs.length === 0) return DEFAULT_BROWSER_STATE;
-    const requested = typeof parsed?.activeTabId === "string" ? parsed.activeTabId : tabs[0].id;
-    return { activeTabId: tabs.some((tab) => tab.id === requested) ? requested : tabs[0].id, tabs };
+    const requested =
+      typeof parsed?.activeTabId === "string" ? parsed.activeTabId : tabs[0].id;
+    return {
+      activeTabId: tabs.some((tab) => tab.id === requested)
+        ? requested
+        : tabs[0].id,
+      tabs,
+    };
   } catch {
     return DEFAULT_BROWSER_STATE;
   }
 }
 
-export function saveBrowserState(state: BrowserState, storage?: Pick<Storage, "setItem"> | null) {
+export function saveBrowserState(
+  state: BrowserState,
+  storage?: Pick<Storage, "setItem"> | null,
+) {
   try {
-    storage?.setItem(BROWSER_STORAGE_KEY, JSON.stringify(state));
+    const persisted = {
+      ...state,
+      tabs: state.tabs.map(({ nativeLabel: _nativeLabel, ...tab }) => tab),
+    };
+    storage?.setItem(BROWSER_STORAGE_KEY, JSON.stringify(persisted));
   } catch {
     // Persistence is best effort; browser tabs remain usable for this session.
   }
 }
 
-export function createBrowserTab(state: BrowserState, input: { profile?: string; url?: string }): BrowserState {
+export function createBrowserTab(
+  state: BrowserState,
+  input: { profile?: string; url?: string },
+): BrowserState {
   const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const tab: BrowserTab = { id, profile: safeProfile(input.profile), url: normalizeBrowserUrl(input.url ?? "about:blank") };
+  const tab: BrowserTab = {
+    id,
+    profile: safeProfile(input.profile),
+    url: normalizeBrowserUrl(input.url ?? "about:blank"),
+  };
   return { activeTabId: id, tabs: [...state.tabs, tab] };
+}
+
+export function activateBrowserTab(
+  state: BrowserState,
+  tabId: string,
+): BrowserState {
+  return state.tabs.some((tab) => tab.id === tabId)
+    ? { ...state, activeTabId: tabId }
+    : state;
+}
+
+export function setBrowserNativeLabel(
+  state: BrowserState,
+  tabId: string,
+  nativeLabel: string,
+): BrowserState {
+  return {
+    ...state,
+    tabs: state.tabs.map((tab) =>
+      tab.id === tabId ? { ...tab, nativeLabel } : tab,
+    ),
+  };
+}
+
+export function closeBrowserTab(
+  state: BrowserState,
+  tabId: string,
+): BrowserState {
+  const tabs = state.tabs.filter((tab) => tab.id !== tabId);
+  if (tabs.length === 0) return DEFAULT_BROWSER_STATE;
+  return {
+    activeTabId:
+      state.activeTabId === tabId
+        ? tabs[tabs.length - 1].id
+        : state.activeTabId,
+    tabs,
+  };
 }

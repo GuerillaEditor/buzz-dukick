@@ -8,6 +8,7 @@ import {
   Cpu,
   Download,
   FlaskConical,
+  Globe,
   Keyboard,
   LayoutTemplate,
   MessagesSquare,
@@ -80,11 +81,13 @@ import { ProfileSettingsCard } from "./ProfileSettingsCard";
 import { UpdateChecker } from "../UpdateChecker";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
 import { VoiceSettingsCard } from "./VoiceSettingsCard";
+import { BrowserSettingsCard } from "@/features/workbench/BrowserSettingsCard";
 
 export type SettingsSection =
   | "profile"
   | "notifications"
   | "voice"
+  | "workbench-browser"
   | "experimental"
   | "agents"
   | "channel-templates"
@@ -105,6 +108,7 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "profile",
   "notifications",
   "voice",
+  "workbench-browser",
   "experimental",
   "agents",
   "channel-templates",
@@ -170,6 +174,11 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "voice",
     label: "Voice",
     icon: Volume2,
+  },
+  {
+    value: "workbench-browser",
+    label: "Workbench browser",
+    icon: Globe,
   },
   {
     value: "experimental",
@@ -830,6 +839,8 @@ export function renderSettingsSection(
       );
     case "voice":
       return <VoiceSettingsCard />;
+    case "workbench-browser":
+      return <BrowserSettingsCard />;
     case "experimental":
       return <ExperimentalFeaturesCard />;
     case "agents":

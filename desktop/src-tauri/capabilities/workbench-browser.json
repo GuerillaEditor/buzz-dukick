@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "workbench-browser-empty",
+  "description": "External workbench browser webviews intentionally receive no Tauri IPC permissions.",
+  "webviews": ["workbench-browser-*"],
+  "permissions": []
+}

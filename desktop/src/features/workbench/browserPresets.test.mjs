@@ -2,10 +2,45 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 test("browser presets are local and editable without remote credentials", async () => {
-  const { BROWSER_PRESETS, normalizeBrowserUrl } = await import(
-    "./browserPresets.ts",
+  const {
+    BROWSER_PRESETS,
+    BROWSER_PRESETS_STORAGE_KEY,
+    loadBrowserPresets,
+    normalizeBrowserUrl,
+    saveBrowserPresets,
+  } = await import("./browserPresets.ts");
+  assert.equal(
+    BROWSER_PRESETS.find((item) => item.id === "comfyui")?.url,
+    "http://127.0.0.1:8188",
   );
-  assert.equal(BROWSER_PRESETS.find((item) => item.id === "comfyui")?.url, "http://127.0.0.1:8188");
-  assert.equal(normalizeBrowserUrl("https://example.com/path"), "https://example.com/path");
+  assert.equal(
+    BROWSER_PRESETS.find((item) => item.id === "penpot")?.url,
+    "http://localhost:9011",
+  );
+  assert.equal(
+    normalizeBrowserUrl("https://example.com/path"),
+    "https://example.com/path",
+  );
   assert.equal(normalizeBrowserUrl("javascript:alert(1)"), "about:blank");
+  let saved = "";
+  const storage = {
+    getItem(key) {
+      assert.equal(key, BROWSER_PRESETS_STORAGE_KEY);
+      return saved || null;
+    },
+    setItem(key, value) {
+      assert.equal(key, BROWSER_PRESETS_STORAGE_KEY);
+      saved = value;
+    },
+  };
+  const edited = BROWSER_PRESETS.map((preset) =>
+    preset.id === "flowpix"
+      ? { ...preset, url: "https://flowpix.ai/share/abc" }
+      : preset,
+  );
+  saveBrowserPresets(edited, storage);
+  assert.equal(
+    loadBrowserPresets(storage).find((item) => item.id === "flowpix")?.url,
+    "https://flowpix.ai/share/abc",
+  );
 });

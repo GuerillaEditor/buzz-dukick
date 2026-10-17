@@ -97,3 +97,32 @@
   color: hsl(var(--muted-foreground));
   font-size: 0.8rem;
 }
+
+.buzz-workbench-browser,
+.buzz-workbench-browser-tabs,
+.buzz-workbench-browser-toolbar,
+.buzz-workbench-browser-presets {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.buzz-workbench-browser {
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.buzz-workbench-browser-tabs,
+.buzz-workbench-browser-toolbar,
+.buzz-workbench-browser-presets {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.buzz-workbench-browser-toolbar input {
+  min-width: 8rem;
+  flex: 1;
+}
+
+.buzz-workbench-browser-note {
+  margin: 0;
+}

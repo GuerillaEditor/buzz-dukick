@@ -302,8 +302,13 @@ function SortableCommunityButton({
  * `useCommunityUnread`) and switches relays on click. Right-click opens a
  * per-community menu for read state, community URL, invites, and settings.
  *
- * Hidden entirely with a single community — a rail of one adds no value.
+ * Dukick: shown even with a single community so the "+" add/join button is
+ * always on the left (upstream hides the rail until there are two).
  */
+export function shouldShowCommunityRail(communityCount: number): boolean {
+  return communityCount >= 1;
+}
+
 export function CommunityRail({
   communities,
   activeCommunityId,
@@ -334,7 +339,7 @@ export function CommunityRail({
     }),
   );
 
-  if (communities.length <= 1) {
+  if (!shouldShowCommunityRail(communities.length)) {
     return null;
   }
 

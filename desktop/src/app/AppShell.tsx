@@ -79,7 +79,10 @@ import { useDueReminderBadgeCount } from "@/features/reminders/hooks";
 import { useReminderNotifications } from "@/features/reminders/useReminderNotifications";
 import { AppSidebar } from "@/features/sidebar/ui/AppSidebar";
 import { requestFocusedThreadClose } from "@/features/channels/focusedThreadCloseRequest";
-import { CommunityRail } from "@/features/sidebar/ui/CommunityRail";
+import {
+  CommunityRail,
+  shouldShowCommunityRail,
+} from "@/features/sidebar/ui/CommunityRail";
 import { useChannelMutes } from "@/features/sidebar/lib/useChannelMutes";
 import { useChannelStars } from "@/features/sidebar/lib/useChannelStars";
 import { useCommunities } from "@/features/communities/useCommunities";
@@ -130,7 +133,9 @@ export function AppShell() {
     showHuddleInMainApp,
     viewHuddleChannel,
   } = useHuddlePresentation();
-  const hasCommunityRail = communitiesHook.communities.length > 1;
+  const hasCommunityRail = shouldShowCommunityRail(
+    communitiesHook.communities.length,
+  );
   const addCommunityDialog = useAddCommunityDialogState();
   const [isChannelManagementOpen, setIsChannelManagementOpen] =
     React.useState(false);

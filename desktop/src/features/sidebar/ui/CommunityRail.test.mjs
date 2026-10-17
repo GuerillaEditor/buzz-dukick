@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { communityRailIndicators } from "./CommunityRail.tsx";
+import {
+  communityRailIndicators,
+  shouldShowCommunityRail,
+} from "./CommunityRail.tsx";
 
 describe("communityRailIndicators", () => {
   it("shows no badge for an observed community with unread but no mentions", () => {
@@ -68,5 +71,19 @@ describe("communityRailIndicators", () => {
     assert.equal(r.showDot, false);
     assert.equal(r.mentionCount, 0);
     assert.equal(r.pending, false);
+  });
+});
+
+describe("shouldShowCommunityRail (Dukick)", () => {
+  it("shows the rail with a single community so add/join stays on the left", () => {
+    assert.equal(shouldShowCommunityRail(1), true);
+  });
+
+  it("shows the rail with several communities", () => {
+    assert.equal(shouldShowCommunityRail(9), true);
+  });
+
+  it("hides the rail when there is no community yet", () => {
+    assert.equal(shouldShowCommunityRail(0), false);
   });
 });

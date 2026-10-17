@@ -9,7 +9,7 @@
 - Task 1 (S1): complete (commit `e6b50b856`; focused WorkbenchDock test 3/3, desktop typecheck PASS)
 - Task 2 (S2): complete (initial `f013c3fc2`, completion/security `bbebe159f`; frontend 5/5, Rust 3/3, capability 1/1, typecheck PASS)
 - Task 3 (S3): complete (commit `b77738bb8`; store/bootstrap/workbench 19/19, substrate 25/25, typecheck PASS)
-- Task 4 (S4): pending
+- Task 4 (S4): complete (commit `90b5deab0`; frontend 39/39, Rust workbench 12/12 including Windows symlink+junction escape, typecheck PASS)
 - Task 5 (S5): pending
 - Final review: pending
 

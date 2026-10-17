@@ -58,7 +58,14 @@ BLOCKED: B2/B3/B4 chưa triển khai trong lượt này; chưa đủ điều ki�
 
 ### S4
 
-PENDING
+- Added the read-only Files workbench for exactly three default roots: `C:\\AIWorkstation\\projects`, `C:\\AIWorkstation\\buzz_agents\\claude_media\\outputs`, and `C:\\AIWorkstation\\buzz_agents\\codex_media`.
+- Rust commands are limited to roots/list/preview/read/reveal. There are no write, delete, rename, or edit commands. Text previews are capped at 1 MiB; media/file reads at 64 MiB.
+- Path guard rejects raw `..`, canonicalizes roots and targets, and requires the canonical target to stay below an allowed root. Windows symlink and junction escape tests both executed and passed.
+- UI supports read-only directory navigation, text/Markdown/image/video/MP4 preview, Explorer reveal, and drag payloads into the existing composer upload flow. Native OS file drops remain unchanged; backend base64 size is verified before constructing a `File`.
+- TDD RED: path guard/preview modules and files store/drag helpers were absent; follow-up contract/root-boundary tests failed before normalization/guard helpers existed.
+- GREEN: focused frontend/workbench/media-upload tests 39/39; desktop TypeScript check PASS; targeted Biome PASS; Rust workbench tests 12/12 under `vcvars64` with `CC=cl`, `CXX=cl`, `CARGO_BUILD_JOBS=6`; diff check PASS.
+- Shared files touched: `desktop/src-tauri/src/lib.rs`, `desktop/src-tauri/src/workbench/mod.rs`, `WorkbenchDock.tsx`, and `useMediaUpload.ts` only for registration/integration.
+- S4 DONE `90b5deab0`
 
 ### S5
 

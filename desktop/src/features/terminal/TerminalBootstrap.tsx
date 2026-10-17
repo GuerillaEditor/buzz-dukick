@@ -1,6 +1,6 @@
 import * as React from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { createPortal } from "react-dom";
 
 import {
@@ -20,6 +20,7 @@ import {
   useTerminalPanel,
   requestTerminalAgentCommand,
 } from "./terminalPanelStore";
+import { terminalFrameToText } from "./terminalMcpBridge";
 
 type TerminalContext = {
   channelId: string;
@@ -38,6 +39,7 @@ type Session = {
   closing: boolean;
   context: TerminalContext;
   pendingCommand?: string;
+  pendingRequestId?: string;
 };
 
 const INITIAL_SIZE: TerminalViewportSize = {
@@ -220,8 +222,77 @@ export function TerminalBootstrap({
     });
   }, []);
 
+  React.useEffect(() => {
+    if (
+      !isTauri() ||
+      typeof (
+        globalThis as { __TAURI_INTERNALS__?: { unregisterListener?: unknown } }
+      ).__TAURI_INTERNALS__?.unregisterListener !== "function"
+    )
+      return;
+    let disposed = false;
+    const listeners = Promise.all([
+      listen<{ requestId?: string; sessionId?: string }>(
+        "workbench-mcp-terminal-read",
+        async (event) => {
+          const { requestId, sessionId } = event.payload ?? {};
+          if (!requestId || !sessionId) return;
+          const session = sessionsRef.current.find(
+            (candidate) => candidate.connection?.sessionId === sessionId,
+          );
+          await emit("workbench-mcp-result", {
+            requestId,
+            ok: Boolean(session),
+            sessionId,
+            text: terminalFrameToText(session?.frame),
+            ...(session ? {} : { error: "terminal session not found" }),
+          });
+        },
+      ),
+      listen<{ requestId?: string; sessionId?: string }>(
+        "workbench-mcp-terminal-stop",
+        async (event) => {
+          const { requestId, sessionId } = event.payload ?? {};
+          if (!requestId || !sessionId) return;
+          const session = sessionsRef.current.find(
+            (candidate) => candidate.connection?.sessionId === sessionId,
+          );
+          if (!session?.connection) {
+            await emit("workbench-mcp-result", {
+              requestId,
+              ok: false,
+              error: "terminal session not found",
+            });
+            return;
+          }
+          try {
+            await session.connection.close();
+            await emit("workbench-mcp-result", {
+              requestId,
+              ok: true,
+              sessionId,
+              stopped: true,
+            });
+          } catch (error) {
+            await emit("workbench-mcp-result", {
+              requestId,
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        },
+      ),
+    ]);
+    return () => {
+      disposed = true;
+      void listeners.then((stops) => {
+        if (disposed) stops.forEach((stop) => void stop());
+      });
+    };
+  }, []);
+
   const createSession = React.useCallback(
-    (pendingCommand?: string) => {
+    (pendingCommand?: string, pendingRequestId?: string) => {
       const spawnContext = contextRef.current;
       if (!available || !spawnContext) return;
       const key = crypto.randomUUID();
@@ -234,6 +305,7 @@ export function TerminalBootstrap({
         closing: false,
         context: spawnContext,
         pendingCommand,
+        pendingRequestId,
       };
       setSessions((current) => [...current, initial]);
       setActiveKey(key);
@@ -281,7 +353,29 @@ export function TerminalBootstrap({
           connectionSizesRef.current.set(connection, size);
           update((session) => ({ ...session, connection }));
           if (pendingCommand) {
-            void connection.input(`${pendingCommand}\n`).catch(fail);
+            void connection
+              .input(`${pendingCommand}\n`)
+              .then(() =>
+                pendingRequestId
+                  ? emit("workbench-mcp-result", {
+                      requestId: pendingRequestId,
+                      ok: true,
+                      sessionId: connection.sessionId,
+                      commandSent: true,
+                    })
+                  : undefined,
+              )
+              .catch(async (error) => {
+                if (pendingRequestId) {
+                  await emit("workbench-mcp-result", {
+                    requestId: pendingRequestId,
+                    ok: false,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  });
+                }
+                fail(error);
+              });
           }
           if (sizeRef.current !== size) {
             const currentSize = sizeRef.current;
@@ -331,10 +425,11 @@ export function TerminalBootstrap({
   React.useEffect(() => {
     if (!sessionRequestPending) return;
     handledSessionRequestRef.current = panel.newSessionRequestId;
-    createSession(panel.agentCommand?.command);
+    createSession(panel.agentCommand?.command, panel.agentCommand?.requestId);
   }, [
     createSession,
     panel.agentCommand?.command,
+    panel.agentCommand?.requestId,
     panel.newSessionRequestId,
     sessionRequestPending,
   ]);

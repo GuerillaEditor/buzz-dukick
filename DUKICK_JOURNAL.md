@@ -94,3 +94,5 @@ BLOCKED: S5 is not eligible for READY FOR AUDIT until the external Rust build bl
 - No token, key, cookie, profile, or production Buzz path was read or written. Native app smoke/evidence and NSIS build remain pending.
 
 S5-MCP IMPLEMENTED; verification remains BLOCKED until native smoke evidence is captured.
+
+- S5-TERMINAL DONE `pending commit`: TerminalBootstrap now returns MCP run/read/stop results through the existing visible PTY session; focused bridge tests remain 21/21 PASS.

@@ -7,7 +7,7 @@
 ## Tasks
 
 - Task 1 (S1): complete (commit `e6b50b856`; focused WorkbenchDock test 3/3, desktop typecheck PASS)
-- Task 2 (S2): pending
+- Task 2 (S2): complete (initial `f013c3fc2`, completion/security `bbebe159f`; frontend 5/5, Rust 3/3, capability 1/1, typecheck PASS)
 - Task 3 (S3): pending
 - Task 4 (S4): pending
 - Task 5 (S5): pending

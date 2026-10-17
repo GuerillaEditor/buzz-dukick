@@ -35,7 +35,15 @@ BLOCKED: B2/B3/B4 chưa triển khai trong lượt này; chưa đủ điều ki�
 
 ### S2
 
-PENDING
+- Native browser implementation: Tauri 2 child webviews (no iframe), per-tab native labels, tabs/back/forward/reload/URL/external controls, local URL/profile/tab persistence, and editable Settings presets for ComfyUI, Penpot, FlowPix, and Super-i.
+- Isolation: profile roots are created only under Dukick local data (`BuzzDukick\\workbench\\profiles`); allowed profiles are `default`, `superi-chrome`, `superi-firefox`, `flowpix`, `higgsfield`, and `pinterest`. No existing browser profile or cookie was read/copied.
+- IPC/CDP: external webviews match `workbench-browser-*` and receive an explicit empty capability; the trusted default capability now targets only `main`/`huddle-*` webviews. All Rust browser commands reject non-workbench labels. CDP accepts only literal `127.0.0.1`.
+- Restart behavior: URL/profile/tab state is persisted locally; runtime native labels are deliberately stripped so restart cannot restore stale webview handles.
+- TDD RED: browser store lacked native-label/tab helpers; empty capability file was absent; native-label classifier was absent; editable preset save/load was absent; restart test proved stale native labels were restored.
+- GREEN: focused browser tests 5/5; desktop TypeScript check PASS; Rust workbench tests 3/3 under `vcvars64` with `CC=cl`, `CXX=cl`, `CARGO_BUILD_JOBS=6`; capability isolation test 1/1 PASS; targeted Biome check PASS.
+- Shared files touched: `desktop/src-tauri/src/lib.rs`, `desktop/src-tauri/capabilities/default.json`, and `desktop/src/features/settings/ui/SettingsPanels.tsx` for command/capability/Settings registration only.
+- Initial implementation commit: `f013c3fc2`; completion/security follow-up commit: `bbebe159f`.
+- S2 DONE `bbebe159f`
 
 ### S3
 

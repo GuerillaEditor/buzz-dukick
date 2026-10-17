@@ -95,4 +95,4 @@ BLOCKED: S5 is not eligible for READY FOR AUDIT until the external Rust build bl
 
 S5-MCP IMPLEMENTED; verification remains BLOCKED until native smoke evidence is captured.
 
-- S5-TERMINAL DONE `pending commit`: TerminalBootstrap now returns MCP run/read/stop results through the existing visible PTY session; focused bridge tests remain 21/21 PASS.
+- S5-TERMINAL DONE `8ee6f7f42`: TerminalBootstrap now returns MCP run/read/stop results through the existing visible PTY session; focused bridge tests remain 21/21 PASS.

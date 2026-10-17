@@ -96,3 +96,16 @@ BLOCKED: S5 is not eligible for READY FOR AUDIT until the external Rust build bl
 S5-MCP IMPLEMENTED; verification remains BLOCKED until native smoke evidence is captured.
 
 - S5-TERMINAL DONE `8ee6f7f42`: TerminalBootstrap now returns MCP run/read/stop results through the existing visible PTY session; focused bridge tests remain 21/21 PASS.
+
+## S5 verification continuation (2026-10-17)
+
+- Rust verification: `cargo check --manifest-path desktop/src-tauri/Cargo.toml --lib --no-default-features` PASS under `vcvars64` with `CC=cl`, `CXX=cl`, `CARGO_BUILD_JOBS=6`.
+- Rust workbench tests: `cargo test --manifest-path desktop/src-tauri/Cargo.toml workbench --no-default-features` PASS, 19/19 workbench tests plus capability isolation test PASS.
+- Frontend verification: `corepack pnpm@11.4.0 --dir desktop typecheck` PASS; full `corepack pnpm@11.4.0 --dir desktop test` PASS (6,852 unit + 160 jsdom, 0 failed); focused terminal/workbench suite PASS 21/21; Biome focused check PASS. `just desktop-check` is unavailable on this Windows host because the recipe requires a missing `sh`; equivalent `pnpm check` PASS with only pre-existing warnings.
+- Release packaging: PASS — Tauri release build produced `desktop/src-tauri/target/release/bundle/msi/Buzz Dukick_0.5.28_x64_en-US.msi` and `desktop/src-tauri/target/release/bundle/nsis/Buzz Dukick_0.5.28_x64-setup.exe`.
+- Runtime isolation: the Dukick release app ran beside the official Buzz process (`C:\Users\jfdjy\AppData\Local\Buzz\buzz-desktop.exe`). The official data directory metadata snapshot before/after Dukick restart was identical; evidence is in `dukick_evidence\official_mtime_before.txt` and `dukick_evidence\official_mtime_after.txt`.
+- MCP transport smoke: Dukick listened on `127.0.0.1:8941`; an unauthenticated initialize request returned HTTP 401. The checks did not read or print the token. ComfyUI `127.0.0.1:8188` and shared Playwright `127.0.0.1:8931` were also listening.
+- Native smoke blocker: the clean Dukick launch reaches the identity onboarding screen and requires `Create a new identity key` or `Use an existing key`. Per scope, no key/credential was created, read, imported, or logged. Therefore the authenticated MCP browser/terminal calls, dock tab proof, FlowPix/ComfyUI browser proof, terminal `echo hello`, Files MP4 preview, restart profile persistence, and screenshots for those states remain unverified. Captured blocker screenshot: `dukick_evidence\s5_native_onboarding_blocker.png`.
+- The official Buzz process remained running throughout; no official app/data file was modified.
+
+BLOCKED: native Dukick smoke evidence cannot be completed without Nam providing an identity-key decision or a pre-authenticated Dukick test identity. Do not mark `READY FOR AUDIT` until that gate is resolved and the authenticated browser/terminal/files MCP evidence is captured.

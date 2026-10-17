@@ -48,15 +48,37 @@ impl McpHandler {
         let _ = self
             .app
             .emit("workbench-agent-activity", json!({"tool":name}));
+        let arguments = Value::Object(params.values);
+        if matches!(
+            name,
+            "browser_navigate" | "browser_tabs" | "files_preview" | "files_reveal"
+        ) {
+            let result = mcp_tools::call(
+                &self.app,
+                ToolCall {
+                    name: name.to_string(),
+                    arguments,
+                },
+            )
+            .await;
+            let payload = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
+            return Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                payload,
+            )]));
+        }
         if name.starts_with("browser_") {
             let _ = self.app.emit(
                 "workbench-mcp-browser-command",
-                json!({"action": name, "arguments": params.values}),
+                json!({"action": name, "arguments": arguments}),
             );
         } else if name == "terminal_run" {
+            let command = arguments
+                .get("command")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             let _ = self.app.emit(
                 "workbench-mcp-terminal-run",
-                json!({"requestId": uuid::Uuid::new_v4().to_string(), "command": params.values.get("command").and_then(Value::as_str).unwrap_or("")}),
+                json!({"requestId": uuid::Uuid::new_v4().to_string(), "command": command}),
             );
         }
         Ok(CallToolResult::success(vec![rmcp::model::Content::text(

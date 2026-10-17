@@ -47,7 +47,14 @@ BLOCKED: B2/B3/B4 chưa triển khai trong lượt này; chưa đủ điều ki�
 
 ### S3
 
-PENDING
+- Reused the existing `TerminalBootstrap`, `TerminalSubstrate`, `terminalPanelStore`, native terminal commands, and `buzz-terminal` crate; no second PTY/runtime was created.
+- Added a stable `buzz-terminal-dock-host` in the Workbench Terminal tab and portals the existing substrate into that host. Multiple sessions, active tab, output buffers, close/stop, focus, and resize continue through the existing runtime.
+- Ctrl/Cmd+J still owns terminal open/close. Terminal store state opens the right dock on Terminal; switching panels or closing hides the substrate without destroying PTY sessions. `requestTerminalSession()` is the UI-only adapter for later agent/MCP commands and always requests a new visible tab.
+- TDD RED: the session-request API was absent and terminal mode did not select the Workbench Terminal tab.
+- Review backprop RED: closing Workbench kept BrowserPanel mounted behind `hidden`, and terminal close left an empty dock. Added V1/V2 regression tests and synchronized both lifecycles.
+- GREEN: combined Terminal store/Bootstrap/Workbench tests 19/19; TerminalSubstrate regression tests 25/25; desktop TypeScript check PASS; targeted Biome PASS; diff check PASS.
+- Shared files touched: WorkbenchDock and existing terminal UI/store only; no Rust terminal engine changes.
+- S3 DONE `b77738bb8`
 
 ### S4
 

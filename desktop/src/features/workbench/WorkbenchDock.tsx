@@ -4,6 +4,7 @@ import {
   useTerminalPanel,
 } from "../terminal/terminalPanelStore";
 import { BrowserPanel } from "./BrowserPanel";
+import { FilesPanel } from "./FilesPanel";
 import {
   DEFAULT_WORKBENCH_STATE,
   loadWorkbenchState,
@@ -18,17 +19,6 @@ const TABS: ReadonlyArray<{ id: WorkbenchTab; label: string }> = [
   { id: "terminal", label: "Terminal" },
   { id: "files", label: "Files" },
 ];
-
-function panelDescription(tab: WorkbenchTab) {
-  switch (tab) {
-    case "browser":
-      return "Native browser tabs will appear here.";
-    case "terminal":
-      return "Terminal sessions will appear here.";
-    case "files":
-      return "Read-only project files will appear here.";
-  }
-}
 
 export function WorkbenchDock() {
   const [state, setState] = React.useState<WorkbenchState>(() =>
@@ -176,12 +166,7 @@ export function WorkbenchDock() {
           hidden={state.activeTab !== "terminal"}
           id="buzz-terminal-dock-host"
         />
-        {state.isOpen && state.activeTab === "files" ? (
-          <>
-            <strong>Files</strong>
-            <p>{panelDescription("files")}</p>
-          </>
-        ) : null}
+        {state.isOpen && state.activeTab === "files" ? <FilesPanel /> : null}
       </div>
     </aside>
   );

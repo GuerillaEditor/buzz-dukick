@@ -147,3 +147,67 @@
 .buzz-workbench-browser-note {
   margin: 0;
 }
+
+.buzz-workbench-files {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.buzz-workbench-files-header,
+.buzz-workbench-preview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.buzz-workbench-roots {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.buzz-workbench-roots button,
+.buzz-workbench-file-list button {
+  overflow: hidden;
+  width: 100%;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.buzz-workbench-files-path {
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.buzz-workbench-file-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 0.2rem;
+  list-style: none;
+}
+
+.buzz-workbench-preview {
+  display: grid;
+  gap: 0.5rem;
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  padding-top: 0.65rem;
+}
+
+.buzz-workbench-preview img,
+.buzz-workbench-preview video {
+  width: 100%;
+  max-height: 20rem;
+  object-fit: contain;
+}
+
+.buzz-workbench-preview pre {
+  overflow: auto;
+  max-height: 20rem;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

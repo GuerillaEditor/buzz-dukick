@@ -53,9 +53,9 @@ mod terminal_transport;
 mod tray_menu;
 mod unread_catch_up;
 mod util;
-mod workbench;
 #[cfg(target_os = "linux")]
 pub mod webkit_rendering;
+mod workbench;
 use app_state::{build_app_state, resolve_persisted_identity, AppState};
 use builderlab::*;
 #[doc(hidden)]
@@ -91,10 +91,6 @@ use mesh_llm_stubs::*;
 #[cfg(all(feature = "mesh-llm", target_os = "macos"))]
 use shutdown::{hard_exit_after_mesh_shutdown, relaunch_after_mesh_shutdown};
 use shutdown::{is_restart_request, shut_down_app};
-use workbench::{
-    workbench_browser_activate, workbench_browser_close, workbench_browser_history,
-    workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
-};
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
 #[cfg(target_os = "macos")]
 use tauri::Listener;
@@ -102,6 +98,12 @@ use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tauri_plugin_window_state::StateFlags;
 #[cfg(target_os = "macos")]
 use tray_menu::show_main_window;
+use workbench::{
+    workbench_browser_activate, workbench_browser_close, workbench_browser_history,
+    workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
+    workbench_files_list, workbench_files_preview, workbench_files_read, workbench_files_reveal,
+    workbench_files_roots,
+};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // mesh-llm async chains overflow tokio's default 2 MiB stacks; run on 8 MiB like upstream.
@@ -547,6 +549,11 @@ pub fn run() {
             workbench_browser_reload,
             workbench_browser_close,
             workbench_browser_history,
+            workbench_files_roots,
+            workbench_files_list,
+            workbench_files_preview,
+            workbench_files_read,
+            workbench_files_reveal,
             take_pending_community_deep_link,
             acknowledge_pending_community_deep_link,
             take_pending_navigation_deep_link,

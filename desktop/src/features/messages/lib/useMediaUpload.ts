@@ -1,4 +1,5 @@
 import * as React from "react";
+import { invoke } from "@tauri-apps/api/core";
 
 import {
   type BlobDescriptor,
@@ -11,6 +12,11 @@ import { applyImetaUpdate, compactImetaSlots } from "./imetaSlots";
 import { isVoiceNoteFile } from "./audioAttachment";
 import { useFilePicker } from "./useFilePicker";
 import { isVideoFile, videoMimeForFile } from "./videoFileType";
+import {
+  resolveDroppedFiles,
+  WORKBENCH_FILE_DRAG_TYPE,
+  type WorkbenchFileReadResult,
+} from "../../workbench/filesDrag";
 
 /**
  * First 4 hex chars of the sha256 — used as a short display name.
@@ -53,7 +59,11 @@ function uploadProgressId(previewId: number): string {
 
 /** True when the drag payload contains files (not plain text or URLs). */
 function isFileDrag(event: React.DragEvent<HTMLElement>): boolean {
-  return event.dataTransfer?.types.includes("Files") ?? false;
+  return (
+    event.dataTransfer?.types.includes("Files") ||
+    event.dataTransfer?.types.includes(WORKBENCH_FILE_DRAG_TYPE) ||
+    false
+  );
 }
 
 function waitForMediaEvent(
@@ -670,7 +680,9 @@ export function useMediaUpload({
       event.preventDefault();
       dragDepthRef.current = 0;
       setIsDragOver(false);
-      const files = Array.from(event.dataTransfer.files);
+      const files = await resolveDroppedFiles(event.dataTransfer, (path) =>
+        invoke<WorkbenchFileReadResult>("workbench_files_read", { path }),
+      );
       if (files.length === 0) return;
 
       // Accept any file. The Tauri layer and the relay enforce the deny-list

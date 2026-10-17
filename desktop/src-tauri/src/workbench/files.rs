@@ -95,9 +95,9 @@ fn classify_preview(path: impl AsRef<Path>) -> Result<PreviewType, String> {
         "toml" => (PreviewKind::Text, "application/toml"),
         "csv" => (PreviewKind::Text, "text/csv"),
         "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "css" | "scss" | "py" | "ps1"
-        | "psm1" | "sh" | "bat" | "cmd" | "ini" | "cfg" | "conf" | "env" | "go" | "java"
-        | "c" | "h" | "cpp" | "hpp" | "cs" | "vue" | "svelte" | "sql" | "srt" | "vtt"
-        | "lock" | "gitignore" | "nk" | "jsonl" => (PreviewKind::Text, "text/plain"),
+        | "psm1" | "sh" | "bat" | "cmd" | "ini" | "cfg" | "conf" | "env" | "go" | "java" | "c"
+        | "h" | "cpp" | "hpp" | "cs" | "vue" | "svelte" | "sql" | "srt" | "vtt" | "lock"
+        | "gitignore" | "nk" | "jsonl" => (PreviewKind::Text, "text/plain"),
         "html" | "htm" => (PreviewKind::Text, "text/html"),
         "xml" => (PreviewKind::Text, "application/xml"),
         "png" => (PreviewKind::Image, "image/png"),

@@ -22,6 +22,7 @@ import {
   setWorkbenchWidth,
   togglePane,
   usePaneLayout,
+  WORKBENCH_DEFAULT_WIDTH,
 } from "./paneLayoutStore";
 
 /** Fired whenever the Terminal pane's portal host mounts or unmounts. */
@@ -203,7 +204,7 @@ function WidthSplitter({ width }: { width: number }) {
     <div
       aria-hidden
       className="group relative z-10 -mr-1 w-2 shrink-0 cursor-col-resize"
-      onDoubleClick={() => setWorkbenchWidth(560)}
+      onDoubleClick={() => setWorkbenchWidth(WORKBENCH_DEFAULT_WIDTH)}
       onPointerDown={(event) => {
         event.preventDefault();
         const handle = event.currentTarget;

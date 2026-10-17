@@ -104,7 +104,10 @@ fn apply_layout(app: &tauri::AppHandle, registry: &BrowserRegistry) -> Result<()
         }
         if showable && active.as_deref() == Some(label.as_str()) {
             webview
-                .set_position(LogicalPosition::new(viewport.x.max(0.0), viewport.y.max(0.0)))
+                .set_position(LogicalPosition::new(
+                    viewport.x.max(0.0),
+                    viewport.y.max(0.0),
+                ))
                 .map_err(|error| error.to_string())?;
             webview
                 .set_size(LogicalSize::new(viewport.width, viewport.height))

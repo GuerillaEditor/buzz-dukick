@@ -697,3 +697,17 @@ test("UI session requests reuse the mounted bootstrap and attach one new session
   );
   view.unmount();
 });
+
+test("shell exe paths become friendly tab titles", async () => {
+  const { shellTitle } = await import("./TerminalBootstrap.tsx");
+  assert.equal(
+    shellTitle(String.raw`C:\Program Files\PowerShell\7\pwsh.exe`),
+    "PowerShell",
+  );
+  assert.equal(
+    shellTitle(String.raw`C:\Windows\system32\cmd.exe`),
+    "Command Prompt",
+  );
+  assert.equal(shellTitle("vim notes.md"), "vim notes.md");
+  assert.equal(shellTitle(""), "SHELL");
+});

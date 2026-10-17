@@ -430,7 +430,9 @@ pub(crate) fn terminal_attach(
     #[cfg(windows)]
     let mut command = {
         let mut command = CommandBuilder::new(&shell);
-        if shell.to_ascii_lowercase().contains("powershell") || shell.to_ascii_lowercase().ends_with("pwsh.exe") {
+        if shell.to_ascii_lowercase().contains("powershell")
+            || shell.to_ascii_lowercase().ends_with("pwsh.exe")
+        {
             command.arg("-NoLogo");
         }
         if let Some(home) = std::env::var_os("USERPROFILE") {
@@ -448,7 +450,10 @@ pub(crate) fn terminal_attach(
     #[cfg(windows)]
     for (key, value) in std::env::vars_os() {
         let upper = key.to_string_lossy().to_ascii_uppercase();
-        if matches!(upper.as_str(), "TERM" | "COLORTERM" | "TERM_PROGRAM" | "SHELL") {
+        if matches!(
+            upper.as_str(),
+            "TERM" | "COLORTERM" | "TERM_PROGRAM" | "SHELL"
+        ) {
             continue;
         }
         command.env(key, value);

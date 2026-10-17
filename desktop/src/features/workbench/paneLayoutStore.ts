@@ -5,9 +5,9 @@ import { setTerminalPanelMode } from "../terminal/terminalPanelStore";
 export type PaneId = "browser" | "terminal" | "files";
 
 export const PANE_IDS: readonly PaneId[] = ["browser", "terminal", "files"];
-export const PANE_LAYOUT_STORAGE_KEY = "buzz-dukick.workbench-panes";
+export const PANE_LAYOUT_STORAGE_KEY = "buzz-dukick.workbench-panes.v2";
 export const WORKBENCH_MIN_WIDTH = 340;
-export const WORKBENCH_DEFAULT_WIDTH = 560;
+export const WORKBENCH_DEFAULT_WIDTH = 760;
 /** Chat keeps at least this much room beside the workbench column. */
 export const CHAT_MIN_WIDTH = 380;
 export const PANE_MIN_WEIGHT = 0.15;

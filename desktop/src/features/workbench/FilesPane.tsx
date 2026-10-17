@@ -212,7 +212,7 @@ export function FilesPane() {
     const element = bodyRef.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) =>
-      setNarrow(entry.contentRect.width < 560),
+      setNarrow(entry.contentRect.width < 460),
     );
     observer.observe(element);
     return () => observer.disconnect();

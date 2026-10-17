@@ -56,6 +56,18 @@ const INITIAL_SIZE: TerminalViewportSize = {
   pixelHeight: 408,
 };
 
+/** Dukick: show "PowerShell" instead of the raw shell exe path as tab title. */
+export function shellTitle(payload: string | undefined): string {
+  const title = payload?.trim();
+  if (!title) return "SHELL";
+  const base = title.split(/[\\/]/).at(-1) ?? title;
+  if (!/\.exe$/i.test(base)) return title;
+  if (/^pwsh\.exe$/i.test(base)) return "PowerShell";
+  if (/^powershell\.exe$/i.test(base)) return "Windows PowerShell";
+  if (/^cmd\.exe$/i.test(base)) return "Command Prompt";
+  return base.replace(/\.exe$/i, "");
+}
+
 function report(error: unknown) {
   console.error("terminal session failed", error);
 }
@@ -332,7 +344,7 @@ export function TerminalBootstrap({
         } else if (message.type === "title") {
           update((session) => ({
             ...session,
-            title: message.payload || "SHELL",
+            title: shellTitle(message.payload),
           }));
         } else if (message.type === "resetTitle") {
           update((session) => ({ ...session, title: "SHELL" }));

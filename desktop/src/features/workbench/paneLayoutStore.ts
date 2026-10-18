@@ -2,9 +2,14 @@ import * as React from "react";
 
 import { setTerminalPanelMode } from "../terminal/terminalPanelStore";
 
-export type PaneId = "browser" | "terminal" | "files";
+export type PaneId = "browser" | "terminal" | "files" | "apps";
 
-export const PANE_IDS: readonly PaneId[] = ["browser", "terminal", "files"];
+export const PANE_IDS: readonly PaneId[] = [
+  "browser",
+  "terminal",
+  "files",
+  "apps",
+];
 export const PANE_LAYOUT_STORAGE_KEY = "buzz-dukick.workbench-panes.v2";
 export const WORKBENCH_MIN_WIDTH = 340;
 export const WORKBENCH_DEFAULT_WIDTH = 760;
@@ -25,7 +30,7 @@ export const DEFAULT_PANE_LAYOUT: PaneLayout = {
   open: [],
   maximized: null,
   width: WORKBENCH_DEFAULT_WIDTH,
-  weights: { browser: 1, terminal: 1, files: 1 },
+  weights: { browser: 1, terminal: 1, files: 1, apps: 1 },
 };
 
 function isPaneId(value: unknown): value is PaneId {

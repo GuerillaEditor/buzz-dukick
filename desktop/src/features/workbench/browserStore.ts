@@ -11,7 +11,14 @@ export const PROFILE_NAMES = [
   "higgsfield",
   "pinterest",
 ] as const;
-export type BrowserProfile = (typeof PROFILE_NAMES)[number];
+/** Built-in names or any `[a-z0-9-]` name (one profile per Apps-hub app). */
+export type BrowserProfile = string;
+
+const PROFILE_PATTERN = /^[a-z0-9][a-z0-9-]{0,47}$/;
+
+export function isValidBrowserProfile(value: unknown): value is BrowserProfile {
+  return typeof value === "string" && PROFILE_PATTERN.test(value);
+}
 
 export type BrowserTab = {
   id: string;
@@ -29,9 +36,7 @@ export const DEFAULT_BROWSER_STATE: BrowserState = {
 };
 
 function safeProfile(value: unknown): BrowserProfile {
-  return PROFILE_NAMES.includes(value as BrowserProfile)
-    ? (value as BrowserProfile)
-    : "default";
+  return isValidBrowserProfile(value) ? value : "default";
 }
 
 function safeTab(value: unknown, fallbackId: string): BrowserTab {

@@ -1,6 +1,7 @@
 #![recursion_limit = "256"] // Deep Tauri command futures exceed the default layout query depth.
 mod app_menu;
 mod app_state;
+mod apps;
 mod archive;
 mod build_identity;
 mod builderlab;
@@ -57,6 +58,10 @@ mod util;
 pub mod webkit_rendering;
 mod workbench;
 use app_state::{build_app_state, resolve_persisted_identity, AppState};
+use apps::{
+    apps_add_custom, apps_list, apps_remove_custom, apps_restart_agents, apps_set_added,
+    apps_set_agent_use,
+};
 use builderlab::*;
 #[doc(hidden)]
 pub use commands::print_agent_access_owner_only_probe_if_requested;
@@ -101,9 +106,9 @@ use tray_menu::show_main_window;
 use workbench::{
     start_mcp, workbench_browser_activate, workbench_browser_close, workbench_browser_history,
     workbench_browser_navigate, workbench_browser_open, workbench_browser_reload,
-    workbench_browser_set_viewport,
-    workbench_files_list, workbench_files_open, workbench_files_preview, workbench_files_read, workbench_files_reveal,
-    workbench_files_roots, BrowserRegistry, McpBridge,
+    workbench_browser_set_viewport, workbench_files_list, workbench_files_open,
+    workbench_files_preview, workbench_files_read, workbench_files_reveal, workbench_files_roots,
+    BrowserRegistry, McpBridge,
 };
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -547,6 +552,12 @@ pub fn run() {
             terminal_runtime::terminal_ack,
             terminal_runtime::terminal_viewport_ready,
             terminal_runtime::terminal_focus,
+            apps_list,
+            apps_set_added,
+            apps_add_custom,
+            apps_remove_custom,
+            apps_set_agent_use,
+            apps_restart_agents,
             workbench_browser_open,
             workbench_browser_activate,
             workbench_browser_navigate,

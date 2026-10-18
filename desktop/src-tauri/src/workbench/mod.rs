@@ -15,6 +15,11 @@ pub use browser::{
     workbench_browser_set_viewport, BrowserRegistry,
 };
 pub use files::{
-    workbench_files_list, workbench_files_open, workbench_files_preview, workbench_files_read, workbench_files_reveal,
-    workbench_files_roots,
+    workbench_files_list, workbench_files_open, workbench_files_preview, workbench_files_read,
+    workbench_files_reveal, workbench_files_roots,
+};
+
+/// Workbench MCP endpoint details for the Apps hub ("Buzz Workbench" app).
+pub use mcp_auth::{
+    configured_port as workbench_mcp_port, load_or_create_token as workbench_mcp_token,
 };

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { FolderOpen, Globe, SquareTerminal } from "lucide-react";
+import { FolderOpen, Globe, LayoutGrid, SquareTerminal } from "lucide-react";
 
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
@@ -10,6 +10,7 @@ import {
   setTerminalPanelMode,
   useTerminalPanel,
 } from "../terminal/terminalPanelStore";
+import { AppsPane } from "../apps/AppsPane";
 import { BrowserPane, useBrowserEvents } from "./BrowserPane";
 import { FilesPane } from "./FilesPane";
 import {
@@ -42,6 +43,7 @@ const PANE_TOGGLES: ReadonlyArray<{
   },
   { id: "browser", label: "Browser", shortcut: "Ctrl+Shift+B", Icon: Globe },
   { id: "files", label: "Files", shortcut: "Ctrl+Shift+E", Icon: FolderOpen },
+  { id: "apps", label: "Apps", shortcut: "Ctrl+Shift+A", Icon: LayoutGrid },
 ];
 
 function useAgentActivity() {
@@ -122,6 +124,7 @@ function TerminalPane() {
 function PaneBody({ id }: { id: PaneId }) {
   if (id === "browser") return <BrowserPane />;
   if (id === "files") return <FilesPane />;
+  if (id === "apps") return <AppsPane />;
   return <TerminalPane />;
 }
 
@@ -134,6 +137,9 @@ function useWorkbenchShortcuts() {
       if (key === "b") {
         event.preventDefault();
         togglePane("browser");
+      } else if (key === "a") {
+        event.preventDefault();
+        togglePane("apps");
       } else if (key === "e") {
         event.preventDefault();
         togglePane("files");

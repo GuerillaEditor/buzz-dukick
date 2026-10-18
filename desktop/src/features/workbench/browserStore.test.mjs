@@ -28,7 +28,7 @@ test("browser state rejects unknown profiles and falls back to a safe preset", a
     getItem: () =>
       JSON.stringify({
         activeTabId: "tab-1",
-        tabs: [{ id: "tab-1", profile: "buzz", url: "javascript:alert(1)" }],
+        tabs: [{ id: "tab-1", profile: "../Buzz", url: "javascript:alert(1)" }],
       }),
   });
   assert.equal(state.tabs[0].profile, "default");

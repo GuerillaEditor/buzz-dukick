@@ -30,6 +30,7 @@ import {
   getBrowserState,
   patchBrowserTab,
   patchBrowserTabByLabel,
+  isValidBrowserProfile,
   PROFILE_NAMES,
   setBrowserNativeLabel,
   type BrowserProfile,
@@ -37,6 +38,8 @@ import {
   updateBrowserState,
   useBrowserState,
 } from "./browserStore";
+import { AppIcon } from "../apps/AppIcon";
+import { useApps } from "../apps/appsStore";
 import { PANE_ICON_BUTTON_CLASS, PaneHeader } from "./PaneHeader";
 import { openPane } from "./paneLayoutStore";
 
@@ -58,9 +61,7 @@ function tabTitle(tab: BrowserTab): string {
 }
 
 function safeProfile(value: string | undefined): BrowserProfile {
-  return PROFILE_NAMES.includes(value as BrowserProfile)
-    ? (value as BrowserProfile)
-    : "default";
+  return isValidBrowserProfile(value) ? value : "default";
 }
 
 /** Load `input` (URL or search text) in a tab, creating its webview if needed. */
@@ -407,7 +408,54 @@ function StartPage({
             </button>
           ))}
         </div>
+        <StartPageApps onOpen={onOpen} />
       </div>
+    </div>
+  );
+}
+
+/** "Apps" row like Codex's "Plugins and MCPs": every added app with a website. */
+function StartPageApps({
+  onOpen,
+}: {
+  onOpen: (input: string, profile?: BrowserProfile) => void;
+}) {
+  const { snapshot } = useApps();
+  const apps = (snapshot?.apps ?? []).filter((app) => app.added && app.webUrl);
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <div className="flex items-center justify-between text-[12px] text-muted-foreground">
+        <span className="font-medium uppercase tracking-wide">Apps</span>
+        <button
+          className="hover:text-foreground"
+          onClick={() => openPane("apps")}
+          type="button"
+        >
+          Quản lý apps →
+        </button>
+      </div>
+      {apps.length === 0 ? (
+        <p className="text-[12px] text-muted-foreground/80">
+          Chưa có app. Mở Apps (Ctrl+Shift+A) để thêm Higgsfield, MagicPath,
+          Miro…
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {apps.map((app) => (
+            <button
+              className="flex items-center gap-2 rounded-lg border border-border/60 bg-background py-1.5 pl-1.5 pr-3 text-[12.5px] hover:border-border hover:bg-muted/40"
+              key={app.id}
+              onClick={() =>
+                app.webUrl && onOpen(app.webUrl, app.browserProfile)
+              }
+              type="button"
+            >
+              <AppIcon app={app} size={24} />
+              {app.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -569,7 +617,12 @@ export function BrowserPane() {
           title="Browser profile (separate cookies / logins)"
           value={active.profile}
         >
-          {PROFILE_NAMES.map((profile) => (
+          {(PROFILE_NAMES.includes(
+            active.profile as (typeof PROFILE_NAMES)[number],
+          )
+            ? [...PROFILE_NAMES]
+            : [...PROFILE_NAMES, active.profile]
+          ).map((profile) => (
             <option key={profile} value={profile}>
               {profile}
             </option>

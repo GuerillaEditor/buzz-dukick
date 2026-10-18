@@ -1,7 +1,11 @@
-import { Activity, Bot, Folders, Inbox, Zap } from "lucide-react";
+import { Activity, Bot, Folders, Inbox, LayoutGrid, Zap } from "lucide-react";
 
 import { TopbarSearch } from "@/features/search/ui/TopbarSearch";
 import { SidebarProjectsSection } from "@/features/sidebar/ui/SidebarProjectsSection";
+import {
+  togglePane,
+  usePaneLayout,
+} from "@/features/workbench/paneLayoutStore";
 import { FeatureGate } from "@/shared/features";
 import type { Channel, SearchHit } from "@/shared/api/types";
 import {
@@ -183,9 +187,29 @@ export function AppSidebarPrimaryMenu({
               </SidebarMenuButton>
             </SidebarMenuItem>
           </FeatureGate>
+          <SidebarAppsEntry />
         </SidebarMenu>
       </SidebarHeader>
       <SidebarProjectsSection />
     </>
+  );
+}
+
+/** Dukick: opens the Apps pane (plugins / MCP / skills hub) in the workbench. */
+function SidebarAppsEntry() {
+  const layout = usePaneLayout();
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        data-testid="open-apps-pane"
+        isActive={layout.open.includes("apps")}
+        onClick={() => togglePane("apps")}
+        tooltip="Apps"
+        type="button"
+      >
+        <LayoutGrid className="h-4 w-4" />
+        <SidebarMenuLabel>Apps</SidebarMenuLabel>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
